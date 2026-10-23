@@ -1,13 +1,13 @@
 package kvue.vdom.knode
 
-import kvue.Component
+import kvue.VueComponentType
 import vue.VNode
 import vue.createVNode
 
 class ComponentNode(
-    private val component: Component
+    private val component: VueComponentType
 ) : KNode {
 
     override fun buildVNode(): VNode =
-        createVNode(component, null, null)
+        createVNode(component.vue, null, null)
 }

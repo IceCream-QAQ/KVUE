@@ -3,7 +3,7 @@ package kvue
 import kotlin.js.Promise
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import test.App
+import test.AppVue
 import vue.createApp
 import vue.nextTick
 
@@ -14,7 +14,7 @@ class AppTest {
     fun counterPropsAndInputRemainReactive(): Promise<Unit> {
         val host = document.createElement("div")
         document.body.appendChild(host)
-        val app = createApp(App().buildVueComponent())
+        val app = createApp(AppVue.definition.vue)
 
         fun cleanup() {
             app.unmount()

@@ -1,0 +1,34 @@
+{
+  "libraries": [
+    {
+      "module": "./foreign-fixture.cjs",
+      "declarations": "../../../src/test/resources/foreign-fixture.d.ts",
+      "package": "fixtures.foreign",
+      "exports": "*"
+    },
+    {
+      "module": "./foreign-default.mjs",
+      "declarations": "../../../src/test/resources/foreign-default.d.ts",
+      "package": "fixtures.foreign",
+      "exports": { "default": "ForeignDefault" }
+    },
+    {
+      "module": "./foreign-commonjs.cjs",
+      "declarations": "../../../src/test/resources/foreign-commonjs.d.ts",
+      "package": "fixtures.foreign",
+      "exports": { "export=": "ForeignCommonJs" }
+    },
+    {
+      "module": "./source-options.mjs",
+      "source": "../../../src/test/resources/source-options.mjs",
+      "package": "fixtures.source",
+      "exports": "*"
+    },
+    {
+      "module": "./source-commonjs.cjs",
+      "source": "../../../src/test/resources/source-commonjs.cjs",
+      "package": "fixtures.source",
+      "exports": { "export=": "SourceCommonJs" }
+    }
+  ]
+}

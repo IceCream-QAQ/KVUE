@@ -4,7 +4,7 @@ import vue.createApp
 
 fun main() {
 
-    createApp(App().buildVueComponent())
+    createApp(AppVue.definition.vue)
         .mount("#app")
 //    createApp(app())
 //        .mount("#app")
