@@ -1,5 +1,5 @@
 plugins {
-    kotlin("js") version "2.0.20"
+    kotlin("multiplatform") version "2.4.21"
 }
 
 group = "org.example"
@@ -9,17 +9,36 @@ repositories {
     mavenCentral()
 }
 
-dependencies {
-    testImplementation(kotlin("test"))
-    implementation(npm("vue",">3.2.47"))
-    implementation("org.jetbrains.kotlinx:kotlinx-html-js:0.9.0")
-}
-
 kotlin {
     js {
+        compilerOptions {
+            // Component discovers delegated state and props by their generated field names.
+            freeCompilerArgs.add("-Xir-minimized-member-names=false")
+        }
         binaries.executable()
         browser {
+            testTask {
+                useKarma {
+                    useChromeHeadless()
+                }
+            }
+        }
+    }
 
+    sourceSets {
+        jsMain {
+            kotlin.srcDir("src/main/kotlin")
+            resources.srcDir("src/main/resources")
+            dependencies {
+                implementation(npm("vue", "3.5.44"))
+                implementation("org.jetbrains.kotlinx:kotlinx-html-js:0.12.0")
+            }
+        }
+        jsTest {
+            kotlin.srcDir("src/test/kotlin")
+            dependencies {
+                implementation(kotlin("test"))
+            }
         }
     }
 }
