@@ -1,0 +1,6 @@
+{
+  "imports": [
+    { "configuration": "kvue.components.json", "sourceRoots": ["src/main/kotlin"] },
+    { "configuration": "tools/js-components/fixtures/components.json", "sourceRoots": ["src/test/kotlin"] }
+  ]
+}

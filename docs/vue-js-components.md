@@ -1,6 +1,7 @@
 # Vue 的组件对象与第三方组件导入
 
 本文对应项目使用的 Vue 3.5.44。
+构建任务已封装到 `kvue-gradle-plugin`；编辑期解析使用可选的 `kvue-idea`。详见 [模块与插件接入](ide-and-build.md)。
 
 ## Vue 如何决定一个值是组件
 

@@ -4,6 +4,7 @@ const { test, before } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const { spawnSync } = require('node:child_process');
 const { analyze, generate } = require('./generate.cjs');
 
 const nodeModules = path.resolve(process.env.KVUE_NODE_MODULES || 'build/js/node_modules');
@@ -129,6 +130,20 @@ test('extracts typed events and adapts rest events and rest callback props', () 
 test('reports lossy type conversions instead of pretending to have exact types', () => {
   assert.ok(report.diagnostics.some(value => value.component === 'ForeignCounter' && value.member === 'event:bulk'));
   assert.ok(report.diagnostics.some(value => value.member === 'prop:format' && value.reason.includes('Rest callback')));
+});
+
+test('analysis CLI returns schemas as JSON without creating build outputs', () => {
+  const root = path.resolve('build/js-importer-tests');
+  fs.mkdirSync(root, { recursive: true });
+  const workingDirectory = fs.mkdtempSync(path.join(root, 'analysis-'));
+  const process = spawnSync(global.process.execPath, [path.join(__dirname, 'generate.cjs'), '--analyze',
+    '--config', path.join(configDirectory, 'components.json'), '--node-modules', nodeModules],
+    { cwd: workingDirectory, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
+  assert.equal(process.status, 0, process.stderr);
+  const analysis = JSON.parse(process.stdout);
+  assert.equal(analysis.components.length, report.components.length);
+  assert.ok(analysis.schemas.find(schema => schema.name === 'SourceCounter').text.includes('@JsComponent'));
+  assert.deepEqual(fs.readdirSync(workingDirectory), []);
 });
 
 test('fails clearly for a selected missing or non-component export', () => {

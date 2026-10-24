@@ -2,6 +2,10 @@
 
 用 Kotlin class 声明 Vue 组件，由 KSP 生成 Vue 组件定义和类型安全的渲染 DSL。
 
+运行库位于 `kvue-runtime`，共享生成规则位于 `kvue-codegen-core`。根项目是示例应用，通过
+`org.kvue` Gradle 插件配置构建。可选的 `kvue-idea` 插件提供 K2 编辑期虚拟声明，解决生成前的组件解析与导入。
+模块依赖、Gradle 接入、IDE 插件构建和安装见 [IDE 与构建集成](docs/ide-and-build.md)。
+
 ## 构建
 
 使用 JDK 21，并将 `JAVA_HOME` 指向对应目录：
@@ -14,7 +18,7 @@
 浏览器测试需要 Chrome；不在默认安装位置时设置 `CHROME_BIN`。生产产物位于
 `build/dist/js/productionExecutable`。
 
-`kvue-ksp` 是 JVM 注解处理器模块，分别通过 `kspJs` 和 `kspJsTest` 处理主源码和测试源码。
+`kvue-ksp` 是 JVM 注解处理器模块，分别通过 `kspJs` 和 `kspJsTest` 处理主源码和测试源码；KVUE Gradle 插件配置这些处理器依赖。
 生成的 Kotlin 文件位于 `build/generated/ksp/js/jsMain/kotlin` 和
 `build/generated/ksp/js/jsTest/kotlin`，不需要手工维护或提交。
 

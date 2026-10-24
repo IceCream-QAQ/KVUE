@@ -437,9 +437,16 @@ if (require.main === module) {
     const option = name => { const index = args.indexOf(name); if (index < 0 || !args[index + 1]) throw new Error(`Missing ${name}`); return args[index + 1]; };
     const configFile = path.resolve(option('--config'));
     const config = JSON.parse(fs.readFileSync(configFile, 'utf8'));
-    const report = generate(config, option('--node-modules'), option('--out'), path.dirname(configFile));
-    console.log(`KVUE: generated ${report.components.length} components, ${report.components.reduce((count, component) => count + component.props.length, 0)} props and ${report.components.reduce((count, component) => count + component.events.length, 0)} events.`);
-    console.log(`KVUE: ${report.diagnostics.length} type conversion notes; ${report.skipped.length} non-component exports skipped. See ${path.resolve(option('--out'), 'report.json')}.`);
+    if (args.includes('--analyze')) {
+      const report = analyze(config, path.resolve(option('--node-modules')), path.dirname(configFile));
+      console.log(JSON.stringify({ ...report, schemas: report.components.map(component => ({
+        package: component.package, name: component.name, text: renderSchema(component),
+      })) }));
+    } else {
+      const report = generate(config, option('--node-modules'), option('--out'), path.dirname(configFile));
+      console.log(`KVUE: generated ${report.components.length} components, ${report.components.reduce((count, component) => count + component.props.length, 0)} props and ${report.components.reduce((count, component) => count + component.events.length, 0)} events.`);
+      console.log(`KVUE: ${report.diagnostics.length} type conversion notes; ${report.skipped.length} non-component exports skipped. See ${path.resolve(option('--out'), 'report.json')}.`);
+    }
   } catch (error) {
     console.error(`KVUE TypeScript importer: ${error.stack || error.message}`);
     process.exitCode = 1;
