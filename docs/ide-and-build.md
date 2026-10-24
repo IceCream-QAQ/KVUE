@@ -11,13 +11,19 @@
 | `kvue-codegen-core` | 独立组件模型、参数命名、可选参数规则、Kotlin 实现和编辑期声明生成 | KotlinPoet |
 | `kvue-ksp` | 读取 KSP 符号、解析别名和泛型继承、验证组件、写出实际源码 | KSP API、codegen-core |
 | `kvue-compiler-plugin` | 检查调用处的可写目标，把绑定参数展开为 prop 读取与 update 事件赋值 | Kotlin 2.4.21 compiler IR API |
-| `tools/js-components` | 静态分析第三方 TS/JS，输出模型和 `@JsComponent` 接口 | Node.js、TypeScript |
+| `tools/js-components`（`:js-component-importer`） | 静态分析第三方 TS/JS；自身维护 Node 分析测试、浏览器接入测试及夹具 | Node.js、TypeScript；测试使用 runtime、kvui、KSP |
 | `kvue-gradle-plugin` | 为消费方配置依赖、源码目录和生成任务，并内置 JS 导入器 | Gradle API；消费方提供 Kotlin Gradle / KSP Gradle API |
 | `kvue-idea` | 后台分析编辑器源码，发布 K2 虚拟声明，处理更新、导航和旧产物遮蔽 | IntelliJ/Kotlin K2 API、codegen-core；内置 JS 导入器 |
-| 根项目 | 示例应用、浏览器测试、第三方组件接入示例 | runtime；通过 Gradle 插件配置 KSP |
+| 根项目 | 插件版本、模块声明和各模块 `check` 汇总 | Gradle `base` 插件，无 Kotlin 源集 |
+| `examples/element-plus-demo` | 独立演示应用，验证 Maven 依赖接入和生产打包 | 已发布的 KVUE / KVUI、npm Element Plus |
 
 `ComponentModel` 中没有 KSP 符号、PSI、KaType 或 Gradle Project。来源位置和符号生命周期由各自适配层管理。
 IDE 与 KSP 调用同一个 `ComponentCodegen`；IDE 仅生成有明确类型的声明及不可执行的占位函数体。
+
+运行时的实例、props/emits、插槽和绑定行为测试在 `kvue-runtime/src/jsTest`，使用原始节点夹具，测试依赖不指向 KVUI。
+原生 DOM 和表单测试在 `kvui/src/jsTest`；外部组件的解析与挂载测试在 `tools/js-components`。
+三个浏览器测试模块分别配置测试 KSP 和绑定编译器，测试处理器不进入它们的主源码依赖。
+Vue 的异步更新声明 `nextTick` 归入运行时，Webpack 测试配置共享 `gradle/webpack`；根目录没有 `src`。
 
 ```mermaid
 flowchart LR
@@ -220,7 +226,7 @@ Gradle 集成为可选依赖：通过 `GradleExecutionHelperExtension.configureS
   "nodeModules": "build/js/node_modules",
   "imports": [
     { "configuration": "kvue.components.json", "sourceRoots": ["src/main/kotlin"] },
-    { "configuration": "tools/js-components/fixtures/components.json", "sourceRoots": ["src/test/kotlin"] }
+    { "configuration": "tools/js-components/fixtures/components.json", "sourceRoots": ["tools/js-components/src/jsTest/kotlin"] }
   ]
 }
 ```
@@ -234,14 +240,18 @@ Kotlin 与外部库各有独立刷新队列，Node 缺失或外部分析失败�
 只读分析入口也可单独调用：
 
 ```powershell
-node tools/js-components/generate.cjs --analyze --config kvue.components.json --node-modules build/js/node_modules
+node tools/js-components/generate.cjs --analyze --config tools/js-components/fixtures/components.json --node-modules build/js/node_modules
 ```
 
 它只向 stdout 输出模型和 schema JSON；IDE 将脚本解包到自身缓存目录，不向项目写入源码。
 
 ## 验证与当前范围
 
-- `gradlew check jsBrowserDistribution`：根应用通过 Gradle 插件构建、KSP 及共享规则测试、TS/JS 分析测试、Vue 浏览器行为和生产打包；包括原生组件的具名 / 可空绑定，以及真实 Element Plus 的 `vModel` 回写。
+- 根目录 `gradlew check`：汇总各库、共享生成器、编译器和导入器模块的检查，根项目自身不编译或运行测试。
+- `gradlew :kvue-runtime:jsBrowserTest`：组件实例、props/emits、插槽延迟执行、构造上下文及具名 / 可空绑定。
+- `gradlew :kvui:check`：原生 DOM 和表单测试，以及标签声明与 `kvui/tools/generate.cjs` 的一致性检查。
+- `gradlew :js-component-importer:check`：Node 中的 TS/JS 静态分析测试、浏览器中的外部组件行为和真实 Element Plus 绑定；所有夹具归入 `tools/js-components/fixtures`。
+- `examples/element-plus-demo` 目录 `gradlew jsBrowserDistribution`：使用本地发布的依赖构建独立演示应用，验证主源码 KSP、全部 Element Plus 组件导入和生产打包。首次运行先按示例 README 准备本地仓库。
 - `gradlew :kvue-compiler-plugin:test`：编译并运行使用绑定参数的 Kotlin 程序，覆盖成员 / 局部 / 委托属性、参数求值顺序、单次接收对象求值、必需属性、错误目标、参数冲突、类型不兼容和跨模块 / 友元 setter 权限。
 - `gradlew -p kvue-gradle-plugin test validatePlugins`：测试将插件发布到 `build/test-repository`，由独立消费项目加载，检查依赖、源码目录、任务顺序和缺失插件提示；还验证配置优先级、同一 daemon 的环境变化、配置缓存复用、两种 KSP 源目录 API、其他生成器及处理器的接线、切换模式和删除产物。
 - `gradlew -p kvue-idea ... test buildPlugin verifyPluginStructure`：真实 IntelliJ/K2 测试框架检查跨包解析、补全导入、参数更新、删除组件、旧产物遮蔽、继承/别名、Kotlin/JS 模块、外部模型的虚拟声明与绑定错误标红；通过 SDK 的 `GradleExecutionHelper.prepareForExecution`，验证模型导入 / 执行任务均注入默认值且保留已有环境。

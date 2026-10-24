@@ -16,6 +16,9 @@
 
 打开 http://127.0.0.1:5173。页面包含输入、开关、计数器、进度条，以及通过 props 和事件连接的原生 Kotlin 子组件。
 
+生产构建同样在本目录运行 `./gradlew.bat jsBrowserDistribution`，产物位于
+`build/dist/js/productionExecutable`。仓库根项目汇总各模块检查，网页运行和打包统一使用本示例。
+
 用装有 KVUE 插件的 IDEA 262 打开本目录并完成 Gradle 同步。主要查看：
 
 - `src/jsMain/kotlin/demo/Playground.kt`：`ElInput(vModel = name)`、`ElSwitch(bindModelValue = enabled)`、`GreetingCard(bindName = name)`，均直接绑定可写属性。

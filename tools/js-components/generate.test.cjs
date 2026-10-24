@@ -7,7 +7,7 @@ const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 const { analyze, generate } = require('./generate.cjs');
 
-const nodeModules = path.resolve(process.env.KVUE_NODE_MODULES || 'build/js/node_modules');
+const nodeModules = path.resolve(process.env.KVUE_NODE_MODULES || path.join(__dirname, '../../build/js/node_modules'));
 const configDirectory = path.join(__dirname, 'fixtures');
 const configuration = JSON.parse(fs.readFileSync(path.join(configDirectory, 'components.json'), 'utf8'));
 let report;
@@ -15,7 +15,7 @@ before(() => { report = analyze(configuration, nodeModules, configDirectory); })
 const component = name => report.components.find(value => value.name === name);
 
 test('discovers named, default, CommonJS, functional and plain options components', () => {
-  assert.deepEqual(report.components.filter(value => value.analysis === 'declaration').map(value => value.name).sort(), ['ForeignCommonJs', 'ForeignCounter', 'ForeignDefault', 'ForeignFunctional', 'ForeignOptions']);
+  assert.deepEqual(report.components.filter(value => value.analysis === 'declaration').map(value => value.name).sort(), ['ElButton', 'ElInput', 'ForeignCommonJs', 'ForeignCounter', 'ForeignDefault', 'ForeignFunctional', 'ForeignOptions']);
   assert.equal(component('ForeignFunctional').kind, 'functional');
   assert.equal(component('ForeignOptions').kind, 'options');
   assert.ok(report.skipped.some(value => value.exportName === 'installer'));
@@ -48,7 +48,7 @@ test('preserves string-array prop and event names and functional JSDoc', () => {
 });
 
 test('resolves a JS entry automatically when no declaration entry is configured', () => {
-  const module = path.resolve('src/test/resources/source-options.mjs').replaceAll('\\', '/');
+  const module = path.join(configDirectory, 'source-options.mjs').replaceAll('\\', '/');
   const automatic = analyze({ libraries: [{ module, package: 'fixtures.auto', exports: ['SourceCounter'] }] }, nodeModules);
   assert.equal(automatic.components[0].analysis, 'source');
   assert.equal(automatic.components[0].props.find(value => value.name === 'title').required, true);
@@ -133,7 +133,7 @@ test('reports lossy type conversions instead of pretending to have exact types',
 });
 
 test('analysis CLI returns schemas as JSON without creating build outputs', () => {
-  const root = path.resolve('build/js-importer-tests');
+  const root = path.join(__dirname, 'build/js-importer-tests');
   fs.mkdirSync(root, { recursive: true });
   const workingDirectory = fs.mkdtempSync(path.join(root, 'analysis-'));
   const process = spawnSync(global.process.execPath, [path.join(__dirname, 'generate.cjs'), '--analyze',
@@ -153,7 +153,7 @@ test('fails clearly for a selected missing or non-component export', () => {
 });
 
 test('regeneration removes stale generated declarations and preserves unrelated files', () => {
-  const root = path.resolve('build/js-importer-tests');
+  const root = path.join(__dirname, 'build/js-importer-tests');
   fs.mkdirSync(root, { recursive: true });
   const output = fs.mkdtempSync(path.join(root, 'generation-'));
   const first = generate(configuration, nodeModules, output, configDirectory);

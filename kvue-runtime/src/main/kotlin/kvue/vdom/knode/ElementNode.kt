@@ -21,10 +21,6 @@ class ElementNode(
         properties[name] = value
     }
 
-    fun onClick(value: () -> Unit) {
-        properties["onClick"] = value
-    }
-
     fun slot(name: String, renderFun: RenderFun) {
         children.getOrPut(name) { mutableListOf() }.add(renderFun)
     }

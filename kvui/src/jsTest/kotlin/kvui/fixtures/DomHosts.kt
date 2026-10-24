@@ -1,4 +1,4 @@
-package fixtures
+package kvui.fixtures
 
 import kvue.Component
 import kvue.annotation.VueComponent

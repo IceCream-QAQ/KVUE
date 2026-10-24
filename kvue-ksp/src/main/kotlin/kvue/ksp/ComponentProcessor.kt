@@ -121,8 +121,7 @@ private class ComponentProcessor(
             .filterIsInstance<KSFunctionDeclaration>()
             .any { declaration ->
                 declaration.simpleName.asString() == className.simpleName &&
-                    declaration.extensionReceiver?.resolve()?.declaration?.qualifiedName?.asString() in
-                    setOf("kvue.vdom.RenderGroup", "kvue.vdom.RenderContext")
+                    declaration.extensionReceiver?.resolve()?.declaration?.qualifiedName?.asString() == "kvue.vdom.RenderGroup"
             }
         if (conflictingFunction) reject("A RenderGroup.${className.simpleName} extension is already declared.")
 

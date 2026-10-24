@@ -106,11 +106,11 @@ Vue 的行为依据：[表单输入绑定](https://vuejs.org/guide/essentials/fo
 
 ## 维护
 
-`tools/kvui/generate.cjs` 维护标签、属性与事件清单，生成并提交 `Html.kt`。修改后运行：
+`kvui/tools/generate.cjs` 维护标签、属性与事件清单，生成并提交 `Html.kt`。修改后在仓库根目录运行：
 
 ```powershell
-node tools/kvui/generate.cjs
+node kvui/tools/generate.cjs
 ```
 
-根项目的 `checkKvuiElements` 检查生成结果是否过期，`check` 会执行它。生成器仅用于本仓库维护，消费方构建不执行此脚本。
-浏览器集成测试位于根项目 `src/test/kotlin/kvue/DomTest.kt`，覆盖原生属性/事件、文本转义、key、组合输入、单双向更新、表单类型和修饰符。
+`:kvui:checkKvuiElements` 检查生成结果是否过期，`:kvui:check` 及根 `check` 会执行它。生成器仅用于本仓库维护，消费方构建不执行此脚本。
+浏览器测试位于本模块的 `src/jsTest/kotlin/kvui/DomTest.kt`，通过 `:kvui:jsBrowserTest` 单独运行，覆盖原生属性/事件、文本转义、key、组合输入、单双向更新、表单类型和修饰符。

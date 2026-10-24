@@ -1,12 +1,12 @@
 package kvue
 
-import fixtures.CounterHostVue
-import fixtures.BindingHostVue
-import fixtures.DefaultsHostVue
-import fixtures.EmptyComponent
-import fixtures.FailingComponentVue
-import fixtures.SlotHostVue
-import fixtures.SlotProbe
+import kvue.fixtures.CounterHostVue
+import kvue.fixtures.BindingHostVue
+import kvue.fixtures.DefaultsHostVue
+import kvue.fixtures.EmptyComponent
+import kvue.fixtures.FailingComponentVue
+import kvue.fixtures.SlotHostVue
+import kvue.fixtures.SlotProbe
 import kvue.`fun`.jso
 import kotlin.js.Promise
 import kotlin.test.Test
@@ -19,7 +19,7 @@ import vue.nextTick
 
 private external val document: dynamic
 
-class KspComponentTest {
+class ComponentRuntimeTest {
     @Test
     fun bindingsSynchronizeRequiredNullableAndNamedPropsInBothDirections(): Promise<Unit> =
         withMounted(BindingHostVue.definition) { host ->

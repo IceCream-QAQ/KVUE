@@ -164,11 +164,15 @@ implementation(npm("element-plus", "2.14.7"))
 `source` 可指向 JS 或 TS 源码，`declarations` 与 `source` 互斥。目前选择一个分析入口，不自动合并两者有冲突的接口。
 指定 `source` 只改变分析来源，生成的 `@JsModule` 仍使用 `module`。
 
+在消费应用目录中运行，例如已按 README 准备好本地依赖的 `examples/element-plus-demo`：
+
 ```powershell
-.\gradlew.bat kotlinUpgradeYarnLock
-.\gradlew.bat generateJsComponents
-.\gradlew.bat check jsBrowserDistribution
+.\gradlew.bat generateKvueJsComponents
+.\gradlew.bat jsBrowserDistribution
 ```
+
+导入器自身的测试位于 `tools/js-components`，从仓库根目录运行 `:js-component-importer:check`。
+该模块的 `generateKvueJsTestComponents` 只生成本模块的测试声明，JS/TS 夹具位于 `fixtures`。
 
 正常 Kotlin 编译也会自动执行生成任务。输出均在 `build` 下，不需要提交：
 
@@ -187,11 +191,12 @@ Gradle 会跟踪生成器、npm 中的源码/声明、显式入口及报告中�
 import kvue.js.elementplus.ElButton
 import kvue.js.elementplus.ElInput
 import kvue.provided
+import kvui.text
 
 // text 是当前组件的 ref 属性。
 override val body = RenderFun {
     ElButton(type = "primary", onClick = { println("clicked") }) {
-        tdiv("保存")
+        text("保存")
     }
     ElInput(
         modelValue = provided(text),

@@ -1,14 +1,13 @@
-package kvue
+package kvui
 
-import fixtures.DomChoiceHostVue
-import fixtures.DomModifiersHostVue
-import fixtures.DomStructureHostVue
-import fixtures.DomTextHostVue
+import kvui.fixtures.DomChoiceHostVue
+import kvui.fixtures.DomModifiersHostVue
+import kvui.fixtures.DomStructureHostVue
+import kvui.fixtures.DomTextHostVue
+import kvue.VueComponentType
+import kvue.provided
 import kvue.vdom.RenderFun
 import kvue.vdom.buildVNodes
-import kvui.element
-import kvui.input
-import kvui.text
 import kotlin.js.Promise
 import kotlin.test.*
 import vue.createApp

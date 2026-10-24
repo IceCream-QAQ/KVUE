@@ -2,8 +2,9 @@
 
 用 Kotlin class 声明 Vue 组件，由 KSP 生成 Vue 组件定义和类型安全的渲染 DSL。
 
-运行库位于 `kvue-runtime`，标准 HTML 元素封装位于 `kvui`，共享生成规则位于 `kvue-codegen-core`。根项目是示例应用，通过
-`org.kvue` Gradle 插件配置构建。可选的 `kvue-idea` 插件提供 K2 编辑期虚拟声明，解决生成前的组件解析与导入。
+运行库位于 `kvue-runtime`，标准 HTML 元素封装位于 `kvui`，共享生成规则位于 `kvue-codegen-core`。
+根项目只管理插件版本、模块和检查任务汇总；源码及测试随各自模块存放。交互示例位于 `examples/element-plus-demo`。
+可选的 `kvue-idea` 插件提供 K2 编辑期虚拟声明，解决生成前的组件解析与导入。
 模块依赖、Gradle 接入、IDE 插件构建和安装见 [IDE 与构建集成](docs/ide-and-build.md)。
 
 ## 构建
@@ -11,12 +12,22 @@
 使用 JDK 21，并将 `JAVA_HOME` 指向对应目录：
 
 ```powershell
-.\gradlew.bat check jsBrowserDistribution
-.\gradlew.bat jsBrowserDevelopmentRun
+.\gradlew.bat check
 ```
 
-浏览器测试需要 Chrome；不在默认安装位置时设置 `CHROME_BIN`。生产产物位于
-`build/dist/js/productionExecutable`。
+浏览器测试需要 Chrome；不在默认安装位置时设置 `CHROME_BIN`。
+演示工程的本地依赖发布、运行和生产打包见 [Element Plus 示例](examples/element-plus-demo/README.md)。
+测试可分别运行：
+
+| 范围 | 测试位置 | Gradle 任务 |
+| --- | --- | --- |
+| 组件实例、props/emits、插槽和绑定 | `kvue-runtime/src/jsTest` | `:kvue-runtime:jsBrowserTest` |
+| 原生 DOM、表单及标签声明 | `kvui/src/jsTest`、`kvui/tools` | `:kvui:check` |
+| JS/TS 静态分析、第三方组件运行 | `tools/js-components` | `:js-component-importer:check` |
+| 共享生成规则 | `kvue-codegen-core/src/test` | `:kvue-codegen-core:test` |
+| 绑定编译器 | `kvue-compiler-plugin/src/test` | `:kvue-compiler-plugin:test` |
+
+根 `check` 汇总上述模块检查。Gradle 和 IDEA 插件的独立构建验证见集成文档。
 
 `kvue-ksp` 是 JVM 注解处理器模块，分别通过 `kspJs` 和 `kspJsTest` 处理主源码和测试源码；KVUE Gradle 插件配置这些处理器依赖。
 生成的 Kotlin 文件位于 `build/generated/ksp/js/jsMain/kotlin` 和
@@ -46,7 +57,8 @@ override val body = RenderFun {
 ## 自动导入第三方 JS 组件
 
 在 `kvue.components.json` 中配置 npm 模块、目标 Kotlin 包和导出选择，构建时优先读取 `.d.ts`，没有声明时静态分析 JS 源码，再通过 KSP 生成 `RenderGroup` 扩展函数。
-当前配置会批量生成 Element Plus 的组件接口，无需逐个手写 Kotlin props/emits 声明。
+演示工程的配置会批量生成 Element Plus 的组件接口，无需逐个手写 Kotlin props/emits 声明。
+导入器模块在自身 `fixtures/components.json` 中配置测试夹具及用到的 `ElButton`、`ElInput`；JS/TS 资源也位于同一目录。
 
 生成接口位于 `build/generated/kvue/js-components/kotlin`，转换报告位于该目录上一层的 `report.json`。
 支持命名导出、默认导出、CommonJS 导出、函数式组件和 options 对象。使用同一个 TypeScript AST/类型检查器读取 JS、TS 和 JSDoc；可通过 `source` 指定源码入口。
@@ -79,7 +91,7 @@ override val body = RenderFun {
 以下示例使用 KVUI 的标准元素函数：
 
 ```kotlin
-package test
+package demo
 
 import kvue.Component
 import kvue.annotation.Emit
@@ -132,7 +144,7 @@ props 和事件上下文在成员初始化之前就已绑定，因此 `ref(initi
 根组件通过生成的定义挂载：
 
 ```kotlin
-createApp(AppVue.definition.vue).mount("#app")
+createApp(CounterVue.definition.vue).mount("#app")
 ```
 
 不要在渲染代码中手工构造实例后再转换。直接在生成的 `setup` 之外调用组件构造函数会报错。
@@ -206,4 +218,4 @@ Counter(initial = 1).apply {
 - `key`、`content` 是生成函数的保留参数名；prop、事件监听参数和生成对象的命名冲突会在 KSP 阶段报错。
 - 生成器不改写组件源码。第三方自动导入覆盖识别出的组件接口，普通工具函数、插件和完整的 TypeScript 类型系统不在生成范围内。
 
-现有 `RenderContext` 保留为 `RenderGroup` 的类型别名。运行时不再扫描编译后的 `$delegate` 字段，生产构建可正常使用成员名压缩。
+渲染 DSL 使用 `RenderGroup`。运行时不扫描编译后的 `$delegate` 字段，生产构建可正常使用成员名压缩。

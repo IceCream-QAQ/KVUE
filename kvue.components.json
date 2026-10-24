@@ -1,9 +1,0 @@
-{
-  "libraries": [
-    {
-      "module": "element-plus",
-      "package": "kvue.js.elementplus",
-      "exports": "*"
-    }
-  ]
-}

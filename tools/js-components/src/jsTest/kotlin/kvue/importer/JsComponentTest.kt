@@ -1,10 +1,12 @@
-package kvue
+package kvue.importer
 
-import fixtures.ElementPlusHostVue
-import fixtures.ForeignHostVue
-import fixtures.SourceHostVue
-import fixtures.foreign.ForeignCounterVue
-import fixtures.foreign.ForeignFunctionalVue
+import kvue.importer.fixtures.ElementPlusHostVue
+import kvue.importer.fixtures.ForeignHostVue
+import kvue.importer.fixtures.SourceHostVue
+import kvue.importer.fixtures.foreign.ForeignCounterVue
+import kvue.importer.fixtures.foreign.ForeignFunctionalVue
+import kvue.JsComponentDefinition
+import kvue.VueComponentType
 import kotlin.js.Promise
 import kotlin.test.Test
 import kotlin.test.assertEquals

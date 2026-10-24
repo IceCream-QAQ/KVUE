@@ -1,22 +1,23 @@
-package fixtures
+package kvue.importer.fixtures
 
-import fixtures.foreign.ForeignCommonJs
-import fixtures.foreign.ForeignCounter
-import fixtures.foreign.ForeignDefault
-import fixtures.foreign.ForeignFunctional
-import fixtures.foreign.ForeignOptions
-import fixtures.source.SourceArray
-import fixtures.source.SourceCommonJs
-import fixtures.source.SourceCounter
-import fixtures.source.SourceFunctional
+import kvue.importer.fixtures.foreign.ForeignCommonJs
+import kvue.importer.fixtures.foreign.ForeignCounter
+import kvue.importer.fixtures.foreign.ForeignDefault
+import kvue.importer.fixtures.foreign.ForeignFunctional
+import kvue.importer.fixtures.foreign.ForeignOptions
+import kvue.importer.fixtures.elementplus.ElButton
+import kvue.importer.fixtures.elementplus.ElInput
+import kvue.importer.fixtures.source.SourceArray
+import kvue.importer.fixtures.source.SourceCommonJs
+import kvue.importer.fixtures.source.SourceCounter
+import kvue.importer.fixtures.source.SourceFunctional
 import kvue.Component
 import kvue.annotation.VueComponent
-import kvue.js.elementplus.ElButton
-import kvue.js.elementplus.ElInput
 import kvue.provided
 import kvue.vdom.RenderFun
-import test.button
-import test.tdiv
+import kvui.button
+import kvui.div
+import kvui.text
 
 @VueComponent
 internal class ForeignHost : Component() {
@@ -37,18 +38,18 @@ internal class ForeignHost : Component() {
             onUpdateModelValue = { modelValue = it },
             onBulk = { values -> bulkLog = "${values.size}:${values[1]}:${values[2]}" },
             key = "left",
-        ) { tdiv("default slot").property("data-foreign-slot", "") }
-            .slot("header") { tdiv("named slot").property("data-foreign-header", "") }
+        ) { div { text("default slot") }.property("data-foreign-slot", "") }
+            .slot("header") { div { text("named slot") }.property("data-foreign-header", "") }
         ForeignCounter(label = "right", key = "right")
         ForeignFunctional(label = "functional")
         ForeignDefault()
         ForeignCommonJs()
         ForeignOptions(label = "options", onAccepted = { accepted = it })
-        button("rename") { label = "renamed" }.property("data-action", "rename")
-        tdiv(eventLog).property("data-foreign-event", "")
-        tdiv(modelValue.toInt().toString()).property("data-foreign-model", "")
-        tdiv(bulkLog).property("data-foreign-bulk", "")
-        tdiv(accepted.toInt().toString()).property("data-foreign-accepted", "")
+        button(onClick = { label = "renamed" }) { text("rename") }.property("data-action", "rename")
+        div { text(eventLog) }.property("data-foreign-event", "")
+        div { text(modelValue.toInt().toString()) }.property("data-foreign-model", "")
+        div { text(bulkLog) }.property("data-foreign-bulk", "")
+        div { text(accepted.toInt().toString()) }.property("data-foreign-accepted", "")
     }
 }
 
@@ -60,12 +61,12 @@ internal class ElementPlusHost : Component() {
 
     override val body = RenderFun {
         ElButton(type = "primary", disabled = disabled, onClick = { clicks++ }) {
-            tdiv("Element Plus button")
+            div { text("Element Plus button") }
         }
         ElInput(vModel = text, placeholder = "Type here")
-        button("disable") { disabled = true }.property("data-action", "disable")
-        tdiv(text).property("data-el-value", "")
-        tdiv(clicks.toString()).property("data-el-count", "")
+        button(onClick = { disabled = true }) { text("disable") }.property("data-action", "disable")
+        div { text(text) }.property("data-el-value", "")
+        div { text(clicks.toString()) }.property("data-el-count", "")
     }
 }
 
@@ -87,10 +88,10 @@ internal class SourceHost : Component() {
         SourceArray(caption = provided("array caption"), onSelected = { values -> selected = "${values[0]}:${values[1]}" })
         SourceCommonJs(onAccepted = { accepted = it })
         SourceFunctional(label = "JSDoc functional")
-        button("rename source") { label = "renamed source" }.property("data-action", "rename-source")
-        tdiv(changed).property("data-source-changed", "")
-        tdiv(selected).property("data-source-selected", "")
-        tdiv(model).property("data-source-model", "")
-        tdiv(accepted.toInt().toString()).property("data-source-accepted", "")
+        button(onClick = { label = "renamed source" }) { text("rename source") }.property("data-action", "rename-source")
+        div { text(changed) }.property("data-source-changed", "")
+        div { text(selected) }.property("data-source-selected", "")
+        div { text(model) }.property("data-source-model", "")
+        div { text(accepted.toInt().toString()) }.property("data-source-accepted", "")
     }
 }

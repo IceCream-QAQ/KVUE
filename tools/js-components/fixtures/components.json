@@ -2,33 +2,38 @@
   "libraries": [
     {
       "module": "./foreign-fixture.cjs",
-      "declarations": "../../../src/test/resources/foreign-fixture.d.ts",
-      "package": "fixtures.foreign",
+      "declarations": "foreign-fixture.d.ts",
+      "package": "kvue.importer.fixtures.foreign",
       "exports": "*"
     },
     {
       "module": "./foreign-default.mjs",
-      "declarations": "../../../src/test/resources/foreign-default.d.ts",
-      "package": "fixtures.foreign",
+      "declarations": "foreign-default.d.ts",
+      "package": "kvue.importer.fixtures.foreign",
       "exports": { "default": "ForeignDefault" }
     },
     {
       "module": "./foreign-commonjs.cjs",
-      "declarations": "../../../src/test/resources/foreign-commonjs.d.ts",
-      "package": "fixtures.foreign",
+      "declarations": "foreign-commonjs.d.ts",
+      "package": "kvue.importer.fixtures.foreign",
       "exports": { "export=": "ForeignCommonJs" }
     },
     {
       "module": "./source-options.mjs",
-      "source": "../../../src/test/resources/source-options.mjs",
-      "package": "fixtures.source",
+      "source": "source-options.mjs",
+      "package": "kvue.importer.fixtures.source",
       "exports": "*"
     },
     {
       "module": "./source-commonjs.cjs",
-      "source": "../../../src/test/resources/source-commonjs.cjs",
-      "package": "fixtures.source",
+      "source": "source-commonjs.cjs",
+      "package": "kvue.importer.fixtures.source",
       "exports": { "export=": "SourceCommonJs" }
+    },
+    {
+      "module": "element-plus",
+      "package": "kvue.importer.fixtures.elementplus",
+      "exports": ["ElButton", "ElInput"]
     }
   ]
 }

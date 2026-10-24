@@ -1,4 +1,4 @@
-package fixtures
+package kvue.fixtures
 
 import kvue.Component
 import kvue.annotation.Emit
@@ -6,8 +6,21 @@ import kvue.annotation.Prop
 import kvue.annotation.VueComponent
 import kvue.provided
 import kvue.vdom.RenderFun
-import test.button
-import test.tdiv
+import kvue.vdom.RenderGroup
+import kvue.vdom.knode.ElementNode
+import kvue.vdom.knode.StringKNode
+
+// Raw nodes keep runtime fixtures independent of the higher-level KVUI module.
+private fun RenderGroup.text(value: String) = addElement(StringKNode(value))
+private fun RenderGroup.div(content: RenderFun): ElementNode = ElementNode("div").apply {
+    slot("default", content)
+    addElement(this)
+}
+private fun RenderGroup.button(onClick: () -> Unit, content: RenderFun): ElementNode = ElementNode("button").apply {
+    property("onClick", onClick)
+    slot("default", content)
+    addElement(this)
+}
 
 internal typealias ChangeHandler = (Int, String) -> Unit
 internal typealias NullableText = String?
@@ -19,8 +32,10 @@ internal class BoundEditor : Component() {
     @Emit(name = "update:modelValue") private val update: (String?) -> Unit by event()
     @Emit(name = "update:visible") private val updateVisible: (Boolean) -> Unit by event()
     override val body = RenderFun {
-        button("$modelValue|$visible") { update(if (modelValue == null) "updated" else null); updateVisible(!visible) }
-            .property("data-bound-child", "")
+        button(onClick = {
+            update(if (modelValue == null) "updated" else null)
+            updateVisible(!visible)
+        }) { text("$modelValue|$visible") }.property("data-bound-child", "")
     }
 }
 
@@ -30,8 +45,8 @@ internal class BindingHost : Component() {
     private var shown by ref(false)
     override val body = RenderFun {
         BoundEditor(vModel = text, bindVisible = shown)
-        tdiv("$text|$shown").property("data-bound-parent", "")
-        button("parent") { text = "parent"; shown = true }.property("data-bound-change-parent", "")
+        div { text("$text|$shown") }.property("data-bound-parent", "")
+        button(onClick = { text = "parent"; shown = true }) { text("parent") }.property("data-bound-change-parent", "")
     }
 }
 
@@ -58,15 +73,15 @@ internal class Counter : Component() {
     private var count by ref(initial)
 
     override val body = RenderFun {
-        button("$id:$count:$step") {
+        button(onClick = {
             count += step
             changed(count, id)
             modelChanged(count)
-        }.property("data-counter", id)
-        button("reset") {
+        }) { text("$id:$count:$step") }.property("data-counter", id)
+        button(onClick = {
             count = initial
             reset()
-        }.property("data-reset", id)
+        }) { text("reset") }.property("data-reset", id)
         slot()
         slot("header")
     }
@@ -97,19 +112,19 @@ internal class CounterHost : Component() {
                 onReset = { resets++ },
                 key = "left",
             ) {
-                tdiv(slotText).property("data-slot", "left")
+                div { text(slotText) }.property("data-slot", "left")
             }.slot("header") {
-                tdiv("header").property("data-header", "left")
+                div { text("header") }.property("data-header", "left")
             }
         }
         Counter(id = "right", initial = 10, key = "right")
-        button("step") { step = 5 }.property("data-action", "step")
-        button("handler") { replaceHandler = true }.property("data-action", "handler")
-        button("toggle") { showLeft = !showLeft }.property("data-action", "toggle")
-        button("slot") { slotText = "second" }.property("data-action", "slot")
-        tdiv(eventLog).property("data-event", "")
-        tdiv(modelValue.toString()).property("data-model", "")
-        tdiv(resets.toString()).property("data-resets", "")
+        button(onClick = { step = 5 }) { text("step") }.property("data-action", "step")
+        button(onClick = { replaceHandler = true }) { text("handler") }.property("data-action", "handler")
+        button(onClick = { showLeft = !showLeft }) { text("toggle") }.property("data-action", "toggle")
+        button(onClick = { slotText = "second" }) { text("slot") }.property("data-action", "slot")
+        div { text(eventLog) }.property("data-event", "")
+        div { text(modelValue.toString()) }.property("data-model", "")
+        div { text(resets.toString()) }.property("data-resets", "")
     }
 }
 
@@ -125,13 +140,13 @@ internal class NullableCard : Component() {
     private val text: NullableText by property<NullableText>("fallback")
 
     override val body = RenderFun {
-        tdiv("$text|$required").property("data-nullable", id)
+        div { text("$text|$required") }.property("data-nullable", id)
     }
 }
 
 @VueComponent
 internal class EmptyComponent : Component() {
-    override val body = RenderFun { tdiv("empty").property("data-empty", "") }
+    override val body = RenderFun { div { text("empty") }.property("data-empty", "") }
 }
 
 internal abstract class GenericBase<T> : Component() {
@@ -141,7 +156,7 @@ internal abstract class GenericBase<T> : Component() {
 
 @VueComponent
 internal class InheritedComponent : GenericBase<String>() {
-    override val body = RenderFun { tdiv(value).property("data-inherited", "") }
+    override val body = RenderFun { div { text(value) }.property("data-inherited", "") }
 }
 
 @VueComponent
@@ -179,10 +194,10 @@ internal class SlotHost : Component() {
     override val body = RenderFun {
         SlotGate(visible = visible) {
             SlotProbe.calls++
-            tdiv("lazy").property("data-lazy", "")
+            div { text("lazy") }.property("data-lazy", "")
         }
-        button("show") { visible = true }.property("data-action", "show")
-        button("unrelated:$unrelated") { unrelated++ }.property("data-action", "unrelated")
+        button(onClick = { visible = true }) { text("show") }.property("data-action", "show")
+        button(onClick = { unrelated++ }) { text("unrelated:$unrelated") }.property("data-action", "unrelated")
     }
 }
 

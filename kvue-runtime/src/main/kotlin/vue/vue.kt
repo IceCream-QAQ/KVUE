@@ -3,6 +3,8 @@
 
 package vue
 
+import kotlin.js.Promise
+
 external interface Ref<T> {
     var value: dynamic
 }
@@ -22,6 +24,4 @@ external fun createTextVNode(text: String): VNode
 
 external fun withDirectives(vnode: VNode, directives: Array<Array<Any?>>): VNode
 
-
-
-
+external fun nextTick(): Promise<Unit>
