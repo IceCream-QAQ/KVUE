@@ -21,7 +21,7 @@
 
 | 范围 | 测试位置 | Gradle 任务 |
 | --- | --- | --- |
-| 组件实例、props/emits、插槽和绑定 | `kvue-runtime/src/jsTest` | `:kvue-runtime:jsBrowserTest` |
+| 组件、响应式监听、生命周期和注入 | `kvue-runtime/src/jsTest` | `:kvue-runtime:jsBrowserTest` |
 | 原生 DOM、表单及标签声明 | `kvui/src/jsTest`、`kvui/tools` | `:kvui:check` |
 | JS/TS 静态分析、第三方组件运行 | `tools/js-components` | `:js-component-importer:check` |
 | 共享生成规则 | `kvue-codegen-core/src/test` | `:kvue-codegen-core:test` |
@@ -36,6 +36,26 @@
 `kvue { exposeGeneratedSources.set(false) }` 可让 KVUE 生成源仅参与构建，不进入 IDE 源目录。
 无 IDEA 插件时默认打开；安装插件后，IDE 同步和构建会注入关闭的默认值。显式 DSL、用户环境变量或
 `-Pkvue.exposeGeneratedSources=true` 可覆盖，完整优先级见上述集成说明。
+
+## Vue API 与响应式监听
+
+`kvue-runtime` 提供 Kotlin 风格的 ref、computed、watch、生命周期、provide/inject 和 effect scope，并在 `vue` 包保留原生 JS API 入口。
+
+```kotlin
+private var count by ref(0)
+private val doubled by computed { count * 2 }
+
+init {
+    watch(::count) { value, old -> println("$old -> $value") }
+    watch({ doubled }, WatchOptions(immediate = true)) { value, _ ->
+        onCleanup { /* 清理这一轮副作用 */ }
+    }
+    onMounted { /* 已挂载 */ }
+}
+```
+
+上述 API 从 `kvue` 导入。监听委托属性时传 getter 或属性引用；持有 ref 对象时也可直接 `watch(ref对象)`。
+完整入口、回调语义和简化后的泛型边界见 [运行时与 Vue API](kvue-runtime/README.md)。
 
 ## 标准 DOM 元素
 

@@ -10,6 +10,7 @@ import demo.elementplus.ElTag
 import kvue.Component
 import kvue.annotation.VueComponent
 import kvue.vdom.RenderFun
+import kvue.watch
 import kvui.*
 
 @VueComponent
@@ -17,6 +18,12 @@ class Playground : Component() {
     private var name by ref("Kotlin")
     private var count by ref(0)
     private var enabled by ref(true)
+    private val percentage by computed { count * 10.0 }
+    private var countNotice by ref("每次点击都由 Kotlin 回调更新 Vue 响应式状态。")
+
+    init {
+        watch(::count) { value, old -> countNotice = "watch 检测到计数变化：$old → $value" }
+    }
 
     override val body = RenderFun {
         main(className = "playground") {
@@ -56,7 +63,7 @@ class Playground : Component() {
 
                 ElCard(header = "02 / 事件与渲染", shadow = "never") {
                     div(className = "counter-value") { text(count.toString()) }
-                    p(className = "muted") { text("每次点击都由 Kotlin 回调更新 Vue 响应式状态。") }
+                    p(className = "muted") { text(countNotice) }
                     div(className = "button-row") {
                         ElButton(
                             type = "primary",
@@ -68,7 +75,7 @@ class Playground : Component() {
                             text("重置")
                         }
                     }
-                    ElProgress(percentage = count * 10.0, strokeWidth = 10.0, color = "#3578e5")
+                    ElProgress(percentage = percentage, strokeWidth = 10.0, color = "#3578e5")
                 }
             }
 

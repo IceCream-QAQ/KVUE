@@ -6,14 +6,16 @@ package vue
 import kotlin.js.Promise
 
 external interface Ref<T> {
-    var value: dynamic
+    var value: T
 }
 
 external interface VNode
 
 external interface Directive
 
-external fun createApp(o: dynamic): dynamic
+external fun createApp(rootComponent: dynamic, rootProps: dynamic = definedExternally): App
+
+external fun createSSRApp(rootComponent: dynamic, rootProps: dynamic = definedExternally): App
 
 external fun <T> ref(data: T): Ref<T>
 
@@ -25,3 +27,5 @@ external fun createTextVNode(text: String): VNode
 external fun withDirectives(vnode: VNode, directives: Array<Array<Any?>>): VNode
 
 external fun nextTick(): Promise<Unit>
+
+external fun <T> nextTick(callback: () -> T): Promise<T>

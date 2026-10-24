@@ -56,7 +56,16 @@ private class ComponentProcessor(
             val component = symbol as? KSClassDeclaration ?: return@forEach
             val qualifiedName = component.qualifiedName?.asString() ?: return@forEach
             if (qualifiedName in processed) return@forEach
-            if (!component.validate(enableNewFeatures = false)) {
+            // Only the generated contract needs to be resolvable here. KSP considers some valid
+            // Kotlin/JS dynamic implementation members unresolved; the Kotlin compiler checks them.
+            if (!component.validate(predicate = { _, node ->
+                    when (node) {
+                        is KSPropertyDeclaration -> node.annotation(PROP_ANNOTATION) != null || node.annotation(EMIT_ANNOTATION) != null
+                        is KSFunctionDeclaration -> node.simpleName.asString() == "<init>"
+                        is KSClassDeclaration -> node == component
+                        else -> true
+                    }
+                }, enableNewFeatures = false)) {
                 deferred += component
                 return@forEach
             }

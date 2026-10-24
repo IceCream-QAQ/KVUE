@@ -3,6 +3,7 @@ package kvue
 import kvue.reactive.EventValue
 import kvue.reactive.PropertyValue
 import kvue.reactive.RefValue
+import kvue.reactive.ReadonlyRef
 import kvue.vdom.RenderFun
 import kvue.vdom.RenderGroup
 import vue.VNode
@@ -12,7 +13,13 @@ abstract class Component {
 
     val vueProps: dynamic get() = instanceContext.props
 
-    fun <T> ref(value: T) = RefValue(value)
+    fun <T> ref(value: T): RefValue<T> = kvue.ref(value)
+
+    fun <T> shallowRef(value: T): RefValue<T> = kvue.shallowRef(value)
+
+    fun <T> computed(getter: () -> T): ReadonlyRef<T> = kvue.computed(getter)
+
+    fun <T> computed(get: () -> T, set: (T) -> Unit): RefValue<T> = kvue.computed(get, set)
 
     fun <T> property(defaultValue: T): PropertyValue<T> = PropertyValue(defaultValue)
 

@@ -20,6 +20,9 @@
 `ComponentModel` 中没有 KSP 符号、PSI、KaType 或 Gradle Project。来源位置和符号生命周期由各自适配层管理。
 IDE 与 KSP 调用同一个 `ComponentCodegen`；IDE 仅生成有明确类型的声明及不可执行的占位函数体。
 
+KSP 的预检查只覆盖组件声明、构造器和参与生成的 props/emits。未参与生成的动态属性、辅助函数由 Kotlin 编译器检查，
+避免合法的 Kotlin/JS `dynamic` 实现细节导致整个组件一直被延后生成。
+
 运行时的实例、props/emits、插槽和绑定行为测试在 `kvue-runtime/src/jsTest`，使用原始节点夹具，测试依赖不指向 KVUI。
 原生 DOM 和表单测试在 `kvui/src/jsTest`；外部组件的解析与挂载测试在 `tools/js-components`。
 三个浏览器测试模块分别配置测试 KSP 和绑定编译器，测试处理器不进入它们的主源码依赖。

@@ -24,6 +24,7 @@
 - `src/jsMain/kotlin/demo/Playground.kt`：`ElInput(vModel = name)`、`ElSwitch(bindModelValue = enabled)`、`GreetingCard(bindName = name)`，均直接绑定可写属性。
 - `src/jsMain/kotlin/demo/GreetingCard.kt`：带 `@Prop` / `@Emit` 的 class 组件，`update:name` 会回写父组件的 name。修改声明后，编辑器会更新对应的 DSL 提示。
 - 页面中的 `main`、`div`、`label`、标题和文本使用 `kvui.*`，无需维护项目私有 HTML helper。
+- 计数器进度使用 `by computed`，说明文字由 `watch(::count)` 更新，可同时观察委托读取、计算缓存和监听回调。
 - `kvue.components.json`：从 Element Plus 的 TypeScript 声明批量导入组件。
 
 `exposeGeneratedSources` 没有显式设置：IDEA 插件在同步和执行任务时注入默认关闭，普通终端默认为打开。

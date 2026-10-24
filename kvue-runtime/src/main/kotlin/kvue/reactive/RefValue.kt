@@ -1,16 +1,15 @@
 package kvue.reactive
 
-import kvue.Component
 import kotlin.reflect.KProperty
 
-class RefValue<T>(value: T) {
-    private val ref = vue.ref(value)
+class RefValue<T> internal constructor(ref: vue.Ref<T>) : ReadRef<T>(ref) {
+    constructor(value: T) : this(vue.ref(value))
 
-    operator fun getValue(thisRef: Component, property: KProperty<*>): T {
-        return ref.value.unsafeCast<T>()
-    }
+    override var value: T
+        get() = super.value
+        set(value) { asVueRef().value = value }
 
-    operator fun setValue(thisRef: Component, property: KProperty<*>, value: T) {
-        ref.value = value
-    }
+    override fun asVueRef(): vue.Ref<T> = vueRef.unsafeCast<vue.Ref<T>>()
+
+    operator fun setValue(thisRef: Any?, property: KProperty<*>, value: T) { this.value = value }
 }
