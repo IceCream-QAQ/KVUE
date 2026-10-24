@@ -9,6 +9,7 @@ repositories { mavenCentral(); gradlePluginPortal() }
 kotlin { jvmToolchain(21) }
 dependencies {
     compileOnly("org.jetbrains.kotlin:kotlin-gradle-plugin:2.4.21")
+    compileOnly("com.google.devtools.ksp:symbol-processing-gradle-plugin:2.3.12")
     compileOnly(localGroovy())
     testImplementation(kotlin("test-junit"))
     testImplementation(gradleTestKit())

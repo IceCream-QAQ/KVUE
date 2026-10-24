@@ -39,12 +39,13 @@ import kvue.codegen.validEventName
 
 class ComponentProcessorProvider : SymbolProcessorProvider {
     override fun create(environment: SymbolProcessorEnvironment): SymbolProcessor =
-        ComponentProcessor(environment.codeGenerator, environment.logger)
+        ComponentProcessor(environment.codeGenerator, environment.logger, environment.options["kvue.outputSubdirectory"])
 }
 
 private class ComponentProcessor(
     private val codeGenerator: CodeGenerator,
     private val logger: KSPLogger,
+    private val outputSubdirectory: String?,
 ) : SymbolProcessor {
     private val processed = mutableSetOf<String>()
 
@@ -227,9 +228,17 @@ private class ComponentProcessor(
     }
 
     private fun generate(parsed: ParsedComponent) {
+        require(outputSubdirectory == null || outputSubdirectory == "__kvue__") { "Unsupported KVUE output subdirectory" }
         ComponentCodegen.generate(parsed.model).forEach { file ->
-            codeGenerator.createNewFile(Dependencies(false, *parsed.origins), file.packageName, file.name)
-                .bufferedWriter().use { file.writeTo(it) }
+            val dependencies = Dependencies(false, *parsed.origins)
+            val output = if (outputSubdirectory == null) {
+                codeGenerator.createNewFile(dependencies, file.packageName, file.name)
+            } else {
+                val path = listOf(outputSubdirectory, file.packageName.replace('.', '/'), file.name)
+                    .filter { it.isNotEmpty() }.joinToString("/")
+                codeGenerator.createNewFileByPath(dependencies, path, "kt")
+            }
+            output.bufferedWriter().use { file.writeTo(it) }
         }
     }
 }

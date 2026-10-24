@@ -22,6 +22,10 @@
 生成的 Kotlin 文件位于 `build/generated/ksp/js/jsMain/kotlin` 和
 `build/generated/ksp/js/jsTest/kotlin`，不需要手工维护或提交。
 
+`kvue { exposeGeneratedSources.set(false) }` 可让 KVUE 生成源仅参与构建，不进入 IDE 源目录。
+无 IDEA 插件时默认打开；安装插件后，IDE 同步和构建会注入关闭的默认值。显式 DSL、用户环境变量或
+`-Pkvue.exposeGeneratedSources=true` 可覆盖，完整优先级见上述集成说明。
+
 ## 自动导入第三方 JS 组件
 
 在 `kvue.components.json` 中配置 npm 模块、目标 Kotlin 包和导出选择，构建时优先读取 `.d.ts`，没有声明时静态分析 JS 源码，再通过 KSP 生成 `RenderGroup` 扩展函数。

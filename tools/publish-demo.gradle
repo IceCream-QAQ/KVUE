@@ -1,0 +1,9 @@
+// Workspace-local Maven repository for the standalone example; no public publication.
+allprojects { project ->
+    project.pluginManager.withPlugin('maven-publish') {
+        project.extensions.getByName('publishing').repositories.maven {
+            name = 'kvueDemo'
+            url = new File(initscript.sourceFile.parentFile.parentFile, '.gradle/kvue-demo-repository').toURI()
+        }
+    }
+}

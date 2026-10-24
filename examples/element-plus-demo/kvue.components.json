@@ -1,0 +1,9 @@
+{
+  "libraries": [
+    {
+      "module": "element-plus",
+      "package": "demo.elementplus",
+      "exports": "*"
+    }
+  ]
+}

@@ -23,6 +23,7 @@ dependencies {
         if (localIde.isPresent) local(localIde.get()) else intellijIdea("2026.2.3")
         bundledPlugin("org.jetbrains.kotlin")
         bundledPlugin("com.intellij.java")
+        bundledPlugin("com.intellij.gradle")
         testFramework(TestFrameworkType.Platform)
         testFramework(TestFrameworkType.Plugin.Java)
     }

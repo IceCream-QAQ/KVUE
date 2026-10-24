@@ -1,0 +1,27 @@
+:root { font-family: Inter, "Segoe UI", "Microsoft YaHei", sans-serif; color: #172b4d; background: #f3f6fb; }
+* { box-sizing: border-box; }
+body { margin: 0; }
+.playground { max-width: 1040px; margin: 0 auto; padding: 60px 28px 32px; }
+.hero { margin-bottom: 34px; }
+.eyebrow { color: #3578e5; font-size: 12px; font-weight: 700; letter-spacing: .16em; }
+h1 { margin: 16px 0; font-size: clamp(28px, 4vw, 42px); letter-spacing: -.04em; line-height: 1.3; }
+.intro, .muted { color: #66758b; line-height: 1.8; }
+.intro { max-width: 720px; }
+.badges { display: flex; gap: 10px; margin-top: 22px; }
+.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; margin-bottom: 22px; }
+.el-card { border-radius: 16px !important; border-color: #e2e8f1 !important; }
+.el-card__header { color: #4a5f7e; font-size: 13px; font-weight: 650; padding: 19px 24px !important; }
+.el-card__body { padding: 24px !important; }
+.field-label { display: block; margin-bottom: 12px; font-size: 14px; font-weight: 600; }
+.switch-row { display: flex; align-items: center; justify-content: space-between; margin: 22px 0; font-size: 14px; }
+.counter-value { color: #3578e5; font-size: 64px; font-weight: 700; line-height: 1.1; letter-spacing: -.04em; }
+.button-row { display: flex; margin: 20px 0 24px; }
+.greeting-row { display: flex; justify-content: space-between; align-items: center; gap: 24px; }
+h2 { margin: 0; font-size: 24px; letter-spacing: -.02em; }
+.greeting-row p { margin-bottom: 0; font-size: 14px; }
+.footer { text-align: center; margin-top: 30px; color: #8391a6; font-size: 12px; }
+@media (max-width: 680px) {
+  .playground { padding: 32px 18px; }
+  .grid { grid-template-columns: 1fr; }
+  .greeting-row { align-items: flex-start; flex-direction: column; }
+}

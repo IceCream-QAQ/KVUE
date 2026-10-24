@@ -204,9 +204,13 @@ class KvueProjectService(private val project: Project, private val scope: Corout
         if (changed.isNotEmpty() && !ApplicationManager.getApplication().isUnitTestMode) DaemonCodeAnalyzer.getInstance(project).restart()
     }
 
-    private fun isGeneratedImplementation(file: KtFile): Boolean =
-        file.virtualFile.path.contains("/build/generated/ksp/") && file.name.endsWith("KVueGenerated.kt")
-    private fun isGeneratedSchema(file: KtFile): Boolean = file.virtualFile.path.contains("/build/generated/kvue/")
+    private fun isGeneratedImplementation(file: KtFile): Boolean {
+        val path = file.virtualFile.path
+        return file.name.endsWith("KVueGenerated.kt") && (path.contains("/build/generated/ksp/") ||
+            Regex("/build/generated/kvue/build-only/[^/]+/[^/]+/kvue/").containsMatchIn(path))
+    }
+    private fun isGeneratedSchema(file: KtFile): Boolean =
+        Regex("/build/generated/kvue/js-(test-)?components/kotlin/").containsMatchIn(file.virtualFile.path)
 
     override fun dispose() { snapshots = emptyMap() }
 }

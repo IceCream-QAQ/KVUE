@@ -1,0 +1,6 @@
+{
+  "nodeModules": "build/js/node_modules",
+  "imports": [
+    { "configuration": "kvue.components.json", "sourceRoots": ["src/jsMain/kotlin"] }
+  ]
+}

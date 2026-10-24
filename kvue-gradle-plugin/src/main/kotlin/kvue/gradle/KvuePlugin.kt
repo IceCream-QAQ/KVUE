@@ -7,6 +7,9 @@ import org.gradle.api.file.RegularFileProperty
 import org.jetbrains.kotlin.gradle.dsl.KotlinMultiplatformExtension
 import org.jetbrains.kotlin.gradle.plugin.KotlinCompilation
 import org.jetbrains.kotlin.gradle.targets.js.nodejs.NodeJsEnvSpec
+import com.google.devtools.ksp.gradle.KspAATask
+import com.google.devtools.ksp.gradle.KspExtension
+import org.jetbrains.kotlin.gradle.tasks.AbstractKotlinCompileTool
 
 class KvuePlugin : Plugin<Project> {
     override fun apply(project: Project) {
@@ -26,6 +29,12 @@ class KvuePlugin : Plugin<Project> {
 // Keep optional Kotlin API types out of the Plugin class's reflected method signatures.
 internal object KotlinIntegration {
     fun configure(project: Project, extension: KvueExtension) {
+        val expose = project.providers.gradleProperty("kvue.exposeGeneratedSources")
+            .map { parseExposure(it, "kvue.exposeGeneratedSources") }
+            .orElse(extension.exposeGeneratedSources).get()
+        extension.exposeGeneratedSources.set(expose)
+        extension.exposeGeneratedSources.disallowChanges()
+        project.extensions.getByType(KspExtension::class.java).arg("kvue.outputSubdirectory", "__kvue__")
         val kotlin = project.extensions.getByType(KotlinMultiplatformExtension::class.java)
         val target = kotlin.targets.findByName(extension.targetName.get())
             ?: throw GradleException("KVUE target '${extension.targetName.get()}' does not exist.")
@@ -45,6 +54,10 @@ internal object KotlinIntegration {
             }
             val configuration = if (isTest) extension.testComponentsFile else extension.componentsFile
             if (configuration.isPresent) configureImporter(project, compilation, configuration, isTest, extension)
+            if (!expose) {
+                // KSP registers its roots during Kotlin's compilation finalization. Run after that registration.
+                project.afterEvaluate { BuildOnlySources.configure(project, compilation) }
+            }
         }
     }
 
@@ -67,7 +80,15 @@ internal object KotlinIntegration {
             })
             it.dependsOn(project.rootProject.tasks.named("kotlinNpmInstall"), project.rootProject.tasks.named("kotlinStoreYarnLock"))
         }
-        compilation.defaultSourceSet.kotlin.srcDir(generate.flatMap { it.outputDirectory.dir("kotlin") })
+        val schemas = generate.flatMap { it.outputDirectory.dir("kotlin") }
+        if (extension.exposeGeneratedSources.get()) {
+            compilation.defaultSourceSet.kotlin.srcDir(schemas)
+        } else {
+            compilation.compileTaskProvider.configure { (it as AbstractKotlinCompileTool<*>).source(schemas); it.dependsOn(generate) }
+            project.tasks.withType(KspAATask::class.java).matching {
+                it.name == compilation.compileTaskProvider.name.replaceFirst("compile", "ksp")
+            }.configureEach { it.kspConfig.sourceRoots.from(project.files(schemas).asFileTree) }
+        }
         val kspTask = compilation.compileTaskProvider.name.replaceFirst("compile", "ksp")
         project.tasks.matching { it.name == kspTask }.configureEach { it.dependsOn(generate) }
     }

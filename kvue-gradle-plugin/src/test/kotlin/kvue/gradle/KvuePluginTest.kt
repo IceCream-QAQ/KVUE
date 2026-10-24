@@ -16,6 +16,7 @@ class KvuePluginTest {
         project.resolve("build.gradle.kts").writeText("""
             import org.gradle.api.tasks.TaskProvider
             import org.jetbrains.kotlin.gradle.dsl.KotlinMultiplatformExtension
+            import kvue.gradle.KvueExtension
             plugins {
                 kotlin("multiplatform") version "2.4.21"
                 id("com.google.devtools.ksp") version "2.3.12"
@@ -30,7 +31,10 @@ class KvuePluginTest {
                     check(configurations.getByName("kspJs").dependencies.any { it.group == "org.kvue" && it.name == "kvue-ksp" })
                     check(configurations.getByName("kspJsTest").dependencies.any { it.name == "kvue-ksp" })
                     val kotlin = project.extensions.getByType(KotlinMultiplatformExtension::class.java)
-                    check(kotlin.sourceSets.getByName("jsMain").kotlin.srcDirs.any { it.path.replace('\\', '/').endsWith("generated/kvue/js-components/kotlin") })
+                    val exposed = project.extensions.getByType(KvueExtension::class.java).exposeGeneratedSources.get()
+                    check(kotlin.sourceSets.getByName("jsMain").kotlin.srcDirs.any {
+                        it.path.replace('\\', '/').endsWith("generated/kvue/js-components/kotlin")
+                    } == exposed)
                     val generation = tasks.getByName("generateKvueJsComponents")
                     check(tasks.getByName("kspKotlinJs").dependsOn.filterIsInstance<TaskProvider<*>>().any { it.name == generation.name })
                     check(tasks.findByName("generateKvueJsTestComponents") == null)
@@ -38,9 +42,11 @@ class KvuePluginTest {
                 }
             }
         """.trimIndent())
-        val result = GradleRunner.create().withProjectDir(project)
-            .withArguments("verifyWiring", "--stacktrace", "--console=plain").build()
-        assertTrue(result.output.contains("KVUE downstream wiring verified"))
+        for (exposed in listOf(true, false)) {
+            val result = GradleRunner.create().withProjectDir(project)
+                .withArguments("verifyWiring", "-Pkvue.exposeGeneratedSources=$exposed", "--stacktrace", "--console=plain").build()
+            assertTrue(result.output.contains("KVUE downstream wiring verified"))
+        }
     }
 
     @Test fun reportsMissingRequiredPluginsWithoutApplyingThemImplicitly() {
