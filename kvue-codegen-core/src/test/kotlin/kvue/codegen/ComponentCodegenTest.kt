@@ -42,4 +42,21 @@ class ComponentCodegenTest {
         assertFalse(text.contains("rawCounter"))
         assertFalse(text.contains("this.addElement"))
     }
+
+    @Test fun controlledPropsExposeBothNamedBindingsAndDefaultModelAlias() {
+        val controlled = ComponentModel(ClassName("sample", "Editor"),
+            listOf(PropModel("modelValue", "modelValue", STRING, false, true),
+                PropModel("title", "title", STRING.copy(nullable = true), true, false)),
+            listOf(EventModel("changed", "update:modelValue", listOf(STRING)),
+                EventModel("titleChanged", "update:title", listOf(STRING.copy(nullable = true)))))
+        val built = ComponentCodegen.generate(controlled).single().members.filterIsInstance<FunSpec>().single()
+        val editor = ComponentCodegen.generate(controlled, true).single().members.filterIsInstance<FunSpec>().single()
+        assertEquals(built.parameters, editor.parameters)
+        assertEquals(listOf("bindModelValue", "vModel", "bindTitle"),
+            built.parameters.filter { it.annotations.any { annotation -> annotation.typeName == ClassName("kvue.annotation", "VBind") } }.map { it.name })
+        assertTrue(built.parameters.first().defaultValue.toString().contains("requiredBindingProp"))
+        assertTrue(built.parameters.find { it.name == "vModel" }!!.defaultValue.toString().contains("omittedBinding"))
+        val conflicting = controlled.copy(props = controlled.props + PropModel("bindTitle", "other", STRING, false, false))
+        assertEquals(listOf("bindTitle"), conflicting.bindingNameConflicts())
+    }
 }

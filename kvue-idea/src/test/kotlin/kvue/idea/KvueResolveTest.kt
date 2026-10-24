@@ -52,6 +52,10 @@ class KvueResolveTest : LightJavaCodeInsightFixtureTestCase() {
             annotation class JsComponent(val module: String, val exportName: String = "default")
             annotation class Prop(val required: Boolean = false, val name: String = "", val variadic: Boolean = false)
             annotation class Emit(val name: String = "", val variadic: Boolean = false)
+            @Target(AnnotationTarget.VALUE_PARAMETER)
+            annotation class VBind(val prop: String, val event: String, val variadic: Boolean = false)
+            @Target(AnnotationTarget.VALUE_PARAMETER)
+            annotation class RequiredBindingProp
         """.trimIndent())
         myFixture.addFileToProject("kvue/Runtime.kt", """
             package kvue
@@ -59,12 +63,18 @@ class KvueResolveTest : LightJavaCodeInsightFixtureTestCase() {
             open class Component {
                 protected fun <T> property(value: T): Delegate<T> = Delegate()
                 protected fun <T> property(): Delegate<T> = Delegate()
+                protected fun <T> ref(value: T): Delegate<T> = Delegate()
                 protected fun <F> event(): Delegate<F> = Delegate()
             }
-            class Delegate<T> { operator fun getValue(owner: Any?, property: KProperty<*>): T = error("test") }
+            class Delegate<T> {
+                operator fun getValue(owner: Any?, property: KProperty<*>): T = error("test")
+                operator fun setValue(owner: Any?, property: KProperty<*>, value: T) {}
+            }
             class ComponentDefinition<T>
             class JsComponentDefinition
             sealed interface OptionalProp<out T> { data object Omitted : OptionalProp<Nothing> }
+            fun <T> omittedBinding(): T = error("test")
+            fun <T> requiredBindingProp(name: String): T = error("test")
         """.trimIndent())
         myFixture.addFileToProject("kvue/Render.kt", """
             package kvue.vdom
@@ -90,6 +100,83 @@ class KvueResolveTest : LightJavaCodeInsightFixtureTestCase() {
         assertTrue(target.valueParameters.first().typeReference!!.text.contains("Int?"))
         assertEmpty(myFixture.doHighlighting(HighlightSeverity.ERROR))
         assertNull(myFixture.tempDirFixture.getFile("build/generated/ksp"))
+    }
+
+    fun testBindingAliasesResolveAndWritableTargetsHaveNoErrors() {
+        bindingComponent()
+        myFixture.configureByText("BindingUsage.kt", """
+            package usage
+            import sample.ModelInput
+            import kvue.vdom.RenderGroup
+            class State { var value = "before" }
+            class PrivateState : kvue.Component() {
+                private var value by ref("before")
+                fun RenderGroup.render() { ModelInput(vModel = value) }
+            }
+            fun RenderGroup.page() {
+                var local = "before"
+                val state = State()
+                ModelInput(vModel = local)
+                ModelInput(bindModelValue = state.value)
+            }
+        """.trimIndent())
+        refresh()
+        assertEmpty(myFixture.doHighlighting(HighlightSeverity.ERROR))
+    }
+
+    fun testBindingTargetsAreMarkedReadOnlyInaccessibleOrInvalid() {
+        bindingComponent()
+        myFixture.configureByText("InvalidBindings.kt", """
+            package usage
+            import sample.ModelInput
+            import kvue.vdom.RenderGroup
+            class State { var value = "before"; private set }
+            fun RenderGroup.page() {
+                val readOnly = "before"
+                val state = State()
+                ModelInput(vModel = readOnly)
+                ModelInput(vModel = state.value)
+                ModelInput(vModel = "literal")
+            }
+        """.trimIndent())
+        refresh()
+        val errors = myFixture.doHighlighting(HighlightSeverity.ERROR).map { it.description.orEmpty() }
+        assertTrue(errors.toString(), errors.any { "read-only" in it })
+        assertTrue(errors.toString(), errors.any { "not accessible" in it })
+        assertTrue(errors.toString(), errors.any { "writable variable or property" in it })
+    }
+
+    fun testBindingConflictsAndMissingRequiredPropAreMarked() {
+        bindingComponent(required = true)
+        myFixture.configureByText("ConflictingBindings.kt", """
+            package usage
+            import sample.ModelInput
+            import kvue.vdom.RenderGroup
+            fun RenderGroup.page() {
+                var value = "before"
+                ModelInput()
+                ModelInput(vModel = value, bindModelValue = value)
+                ModelInput(modelValue = "explicit", vModel = value)
+            }
+        """.trimIndent())
+        refresh()
+        val errors = myFixture.doHighlighting(HighlightSeverity.ERROR).map { it.description.orEmpty() }
+        assertTrue(errors.toString(), errors.any { "Required prop" in it })
+        assertTrue(errors.toString(), errors.any { "one binding alias" in it })
+        assertTrue(errors.toString(), errors.any { "cannot be combined" in it })
+    }
+
+    private fun bindingComponent(required: Boolean = false) {
+        myFixture.addFileToProject("sample/ModelInput.kt", """
+            package sample
+            import kvue.Component
+            import kvue.annotation.*
+            @VueComponent
+            class ModelInput : Component() {
+                @Prop(required = $required) private val modelValue by property("")
+                @Emit(name = "update:modelValue") private val changed: (String) -> Unit by event()
+            }
+        """.trimIndent())
     }
 
     fun testCompletionOffersTheGeneratedExtensionAndImportsIt() {

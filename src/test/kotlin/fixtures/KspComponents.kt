@@ -13,6 +13,29 @@ internal typealias ChangeHandler = (Int, String) -> Unit
 internal typealias NullableText = String?
 
 @VueComponent
+internal class BoundEditor : Component() {
+    @Prop(required = true) private val modelValue by property<String?>()
+    @Prop private val visible by property(false)
+    @Emit(name = "update:modelValue") private val update: (String?) -> Unit by event()
+    @Emit(name = "update:visible") private val updateVisible: (Boolean) -> Unit by event()
+    override val body = RenderFun {
+        button("$modelValue|$visible") { update(if (modelValue == null) "updated" else null); updateVisible(!visible) }
+            .property("data-bound-child", "")
+    }
+}
+
+@VueComponent
+internal class BindingHost : Component() {
+    private var text by ref<String?>(null)
+    private var shown by ref(false)
+    override val body = RenderFun {
+        BoundEditor(vModel = text, bindVisible = shown)
+        tdiv("$text|$shown").property("data-bound-parent", "")
+        button("parent") { text = "parent"; shown = true }.property("data-bound-change-parent", "")
+    }
+}
+
+@VueComponent
 internal class Counter : Component() {
     @Prop(required = true)
     private val id by property<String>()

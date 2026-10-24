@@ -62,7 +62,7 @@ internal class ElementPlusHost : Component() {
         ElButton(type = "primary", disabled = disabled, onClick = { clicks++ }) {
             tdiv("Element Plus button")
         }
-        ElInput(modelValue = provided(text), placeholder = "Type here", onUpdateModelValue = { text = it })
+        ElInput(vModel = text, placeholder = "Type here")
         button("disable") { disabled = true }.property("data-action", "disable")
         tdiv(text).property("data-el-value", "")
         tdiv(clicks.toString()).property("data-el-count", "")

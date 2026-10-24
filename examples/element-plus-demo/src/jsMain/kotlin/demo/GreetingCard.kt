@@ -16,14 +16,20 @@ class GreetingCard : Component() {
     @Emit
     private val reset: () -> Unit by event()
 
+    @Emit(name = "update:name")
+    private val updateName: (String) -> Unit by event()
+
     override val body = RenderFun {
         ElCard(header = "03 / Kotlin class 组件", shadow = "never") {
             tag("div", "greeting-row") {
                 tag("div") {
-                    tag("h2") { text("你好，$name。") }
-                    tag("p", "muted") { text("这是独立的 GreetingCard，接收 name 属性，并发出 reset 事件。") }
+                    tag("h2") { text("你好，${name.ifBlank { "朋友" }}。") }
+                    tag("p", "muted") { text("name 通过 bindName 双向同步，reset 事件单独处理。") }
                 }
-                ElButton(plain = true, onClick = { reset() }) { text("从子组件重置") }
+                tag("div", "button-row") {
+                    ElButton(plain = true, onClick = { updateName("KVUE") }) { text("名字设为 KVUE") }
+                    ElButton(plain = true, onClick = { reset() }) { text("从子组件重置") }
+                }
             }
         }
     }

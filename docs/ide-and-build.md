@@ -9,6 +9,7 @@
 | `kvue-runtime` | 运行时、注解、Vue 绑定，以及生成实现调用的公共 API | Kotlin/JS、Vue |
 | `kvue-codegen-core` | 独立组件模型、参数命名、可选参数规则、Kotlin 实现和编辑期声明生成 | KotlinPoet |
 | `kvue-ksp` | 读取 KSP 符号、解析别名和泛型继承、验证组件、写出实际源码 | KSP API、codegen-core |
+| `kvue-compiler-plugin` | 检查调用处的可写目标，把绑定参数展开为 prop 读取与 update 事件赋值 | Kotlin 2.4.21 compiler IR API |
 | `tools/js-components` | 静态分析第三方 TS/JS，输出模型和 `@JsComponent` 接口 | Node.js、TypeScript |
 | `kvue-gradle-plugin` | 为消费方配置依赖、源码目录和生成任务，并内置 JS 导入器 | Gradle API；消费方提供 Kotlin Gradle / KSP Gradle API |
 | `kvue-idea` | 后台分析编辑器源码，发布 K2 虚拟声明，处理更新、导航和旧产物遮蔽 | IntelliJ/Kotlin K2 API、codegen-core；内置 JS 导入器 |
@@ -69,18 +70,61 @@ npm 准备 → generateKvueJsComponents → KSP → Kotlin/JS 编译 → 打包
 ```
 
 `addRuntimeDependency` / `addProcessorDependency` 可分别关闭自动依赖。
-`runtimeProject` / `processorProject` 用于本仓库的 project 依赖；普通消费方使用默认 Maven 坐标。
+`runtimeProject` / `processorProject` / `compilerProject` 用于本仓库的 project 依赖；普通消费方使用默认 Maven 坐标。
+编译器插件默认启用；仅在不使用绑定语法的特殊构建中才需要 `compilerPluginEnabled.set(false)`。
 `testComponentsFile` 可单独配置测试用第三方库。一个应用模块当前选择一个 JS 目标。
 
 这些坐标是本地原型的发布坐标，尚未上传公共仓库。需要跨仓库试用时，可发布到本机 Maven：
 
 ```powershell
-.\gradlew.bat :kvue-runtime:publishToMavenLocal :kvue-codegen-core:publishToMavenLocal :kvue-ksp:publishToMavenLocal
+.\gradlew.bat :kvue-runtime:publishToMavenLocal :kvue-codegen-core:publishToMavenLocal :kvue-ksp:publishToMavenLocal :kvue-compiler-plugin:publishToMavenLocal
 .\gradlew.bat -p kvue-gradle-plugin publishToMavenLocal
 ```
 
 消费方分别在 `pluginManagement.repositories` 和普通 `repositories` 中添加 `mavenLocal()`。
 插件包包含 JS 分析脚本，消费方无需复制本仓库的 `tools` 目录。
+
+## 双向绑定的编译器展开
+
+KSP / IDE 共享的生成器把属性和对应的 update 事件配对。例如 `modelValue` + `onUpdateModelValue` 生成 `bindModelValue` 和 `vModel`；`visible` + `onUpdateVisible` 生成 `bindVisible`。
+匹配依据是 Vue 的属性名与生成后的事件参数名，支持 `@Emit(name = "update:visible")` 等原生组件声明，也适用于 TS/JS 自动导入的组件。
+
+```kotlin
+private var text by ref("")
+private var opened by ref(false)
+
+override val body = RenderFun {
+    ElInput(vModel = text)
+    ElDialog(bindModelValue = opened)
+    // 对有 visible / update:visible 的组件：Popup(bindVisible = opened)
+}
+```
+
+这里直接传属性表达式，无需 `::text` 或手写 getter/setter lambda。Kotlin 编译器插件在 IR 阶段把绑定改写为实际参数；对于 ElInput，大致相当于：
+
+```kotlin
+ElInput(modelValue = provided(text), onUpdateModelValue = { text = it })
+```
+
+编译器保留参数求值顺序。`vModel = obtainState().text` 会在该次调用中求值一次 `obtainState()`，回调写回同一个对象。局部 `var`、成员属性、顶层属性和委托 `var` 都走实际的 Kotlin 赋值 / setter；没有运行时反射。
+绑定不会把普通 `var` 自动变为 Vue 响应式状态；组件需要随状态变化重新渲染时，仍使用 `ref` 等响应式声明。
+
+构建期检查包括：
+
+- 目标是否可写，setter 在当前位置是否可见。
+- update 事件的值能否赋给目标类型。
+- 同一属性是否同时使用两个绑定别名，或同时给出绑定与原始 prop / update 回调。
+- 必需受控属性是否由直接值或绑定提供。未配对的必需属性仍由 Kotlin 普通必需参数检查。
+- 生成的 `bindXxx` / `vModel` 是否与已有参数重名；此类组件声明会在生成时报告冲突。
+
+update 事件至少需要一个值参数。额外参数不会写回；不定参 JS 事件使用第一个 payload。TS 联合类型或未知类型降级为 `Any` 时，编译器会在回写时转换为目标属性类型，错误的运行时值仍会导致类型转换错误，不能将 `Any` 当成精确静态类型。
+
+常量、`val`、普通函数结果、属性引用、索引表达式与安全调用不能作为绑定目标。可以把需要的读写逻辑包装为带 getter/setter 的 Kotlin `var` 属性。
+
+生成入口用二进制保留的 `@VBind` / `@RequiredBindingProp` 参数标记传递契约，消费其他模块中已生成的 API 时也能展开。未启用编译器插件却调用绑定入口时，运行时会明确报错；普通 props / emits 调用仍可使用。
+IDE 插件的 Kotlin Annotator 读取相同标记，使用 K2 符号、类型和可见性检查，在参数处标红；虚拟声明与 KSP 实现使用相同的绑定签名。
+
+目前编译器插件针对 Kotlin **2.4.21** 构建；IR API 随编译器版本变化，升级 Kotlin 时需要一起更新并验证。
 
 ## 生成源的可见性开关
 
@@ -191,9 +235,10 @@ node tools/js-components/generate.cjs --analyze --config kvue.components.json --
 
 ## 验证与当前范围
 
-- `gradlew check jsBrowserDistribution`：根应用通过 Gradle 插件构建、KSP 及共享规则测试、TS/JS 分析测试、Vue 浏览器行为和生产打包；两种生成源可见性模式均可运行。
+- `gradlew check jsBrowserDistribution`：根应用通过 Gradle 插件构建、KSP 及共享规则测试、TS/JS 分析测试、Vue 浏览器行为和生产打包；包括原生组件的具名 / 可空绑定，以及真实 Element Plus 的 `vModel` 回写。
+- `gradlew :kvue-compiler-plugin:test`：编译并运行使用绑定参数的 Kotlin 程序，覆盖成员 / 局部 / 委托属性、参数求值顺序、单次接收对象求值、必需属性、错误目标、参数冲突、类型不兼容和跨模块 / 友元 setter 权限。
 - `gradlew -p kvue-gradle-plugin test validatePlugins`：测试将插件发布到 `build/test-repository`，由独立消费项目加载，检查依赖、源码目录、任务顺序和缺失插件提示；还验证配置优先级、同一 daemon 的环境变化、配置缓存复用、两种 KSP 源目录 API、其他生成器及处理器的接线、切换模式和删除产物。
-- `gradlew -p kvue-idea ... test buildPlugin verifyPluginStructure`：真实 IntelliJ/K2 测试框架检查跨包解析、补全导入、参数更新、删除组件、旧产物遮蔽、继承/别名、Kotlin/JS 模块和外部模型的虚拟声明；通过 SDK 的 `GradleExecutionHelper.prepareForExecution`，验证模型导入 / 执行任务均注入默认值且保留已有环境。
+- `gradlew -p kvue-idea ... test buildPlugin verifyPluginStructure`：真实 IntelliJ/K2 测试框架检查跨包解析、补全导入、参数更新、删除组件、旧产物遮蔽、继承/别名、Kotlin/JS 模块、外部模型的虚拟声明与绑定错误标红；通过 SDK 的 `GradleExecutionHelper.prepareForExecution`，验证模型导入 / 执行任务均注入默认值且保留已有环境。
 
 本地 IU 262.10968.63 的测试 classpath 中，一个混淆过的 Ultimate 启动扩展被解析成接口；测试启动时只隔离这个无关扩展。
 Kotlin 解析器、Resolve Extension、补全和高亮均使用真实 SDK；插件发行包不包含此测试适配。

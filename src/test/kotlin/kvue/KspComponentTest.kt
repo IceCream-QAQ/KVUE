@@ -1,6 +1,7 @@
 package kvue
 
 import fixtures.CounterHostVue
+import fixtures.BindingHostVue
 import fixtures.DefaultsHostVue
 import fixtures.EmptyComponent
 import fixtures.FailingComponentVue
@@ -19,6 +20,27 @@ import vue.nextTick
 private external val document: dynamic
 
 class KspComponentTest {
+    @Test
+    fun bindingsSynchronizeRequiredNullableAndNamedPropsInBothDirections(): Promise<Unit> =
+        withMounted(BindingHostVue.definition) { host ->
+            fun child() = host.querySelector("[data-bound-child]")
+            fun parent() = host.querySelector("[data-bound-parent]").textContent as String
+            assertEquals("null|false", parent())
+            child().click()
+            nextTick().then {
+                assertEquals("updated|true", parent())
+                assertEquals("updated|true", child().textContent as String)
+                child().click()
+                nextTick()
+            }.then {
+                assertEquals("null|false", parent())
+                host.querySelector("[data-bound-change-parent]").click()
+                nextTick()
+            }.then {
+                assertEquals("parent|true", child().textContent as String)
+            }
+        }
+
     @Test
     fun generatedDslPreservesInstanceStatePropsEventsAndSlots(): Promise<Unit> =
         withMounted(CounterHostVue.definition) { host ->

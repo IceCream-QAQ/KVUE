@@ -9,7 +9,6 @@ import demo.elementplus.ElSwitch
 import demo.elementplus.ElTag
 import kvue.Component
 import kvue.annotation.VueComponent
-import kvue.provided
 import kvue.vdom.RenderFun
 
 @VueComponent
@@ -34,18 +33,16 @@ class Playground : Component() {
                 ElCard(header = "01 / 输入与状态", shadow = "never") {
                     tag("label", "field-label") { text("你的名字") }
                     ElInput(
-                        modelValue = provided(name),
+                        vModel = name,
                         placeholder = "输入名字，看看下方的问候",
                         clearable = true,
                         size = "large",
-                        onUpdateModelValue = { name = it },
                     )
                     tag("div", "switch-row") {
                         tag("span") { text("启用计数器") }
                         ElSwitch(
-                            modelValue = enabled,
+                            bindModelValue = enabled,
                             ariaLabel = "启用计数器",
-                            onUpdateModelValue = { enabled = it as Boolean },
                         )
                     }
                     ElAlert(
@@ -75,7 +72,7 @@ class Playground : Component() {
             }
 
             // 自己声明的 class，也由插件提供同名 RenderGroup 扩展函数。
-            GreetingCard(name = name.ifBlank { "朋友" }, onReset = { count = 0 })
+            GreetingCard(bindName = name, onReset = { count = 0 })
             tag("footer", "footer") { text("KVUE · 一个独立的 Kotlin/JS + Element Plus 工程") }
         }
     }

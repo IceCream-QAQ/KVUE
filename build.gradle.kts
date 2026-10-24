@@ -49,6 +49,7 @@ kotlin {
 kvue {
     runtimeProject.set(":kvue-runtime")
     processorProject.set(":kvue-ksp")
+    compilerProject.set(":kvue-compiler-plugin")
     testComponentsFile.set(layout.projectDirectory.file("tools/js-components/fixtures/components.json"))
 }
 

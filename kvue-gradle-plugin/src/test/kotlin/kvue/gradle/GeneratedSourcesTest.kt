@@ -103,6 +103,7 @@ class GeneratedSourcesTest {
             kvue {
                 addRuntimeDependency.set(false)
                 addProcessorDependency.set(false)
+                compilerPluginEnabled.set(false)
                 processTests.set(false)
                 providers.gradleProperty("testDslExposure").orNull?.let { exposeGeneratedSources.set(it.toBooleanStrict()) }
             }

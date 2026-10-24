@@ -37,6 +37,26 @@
 
 Vue 如何判断组件对象、接入配置、调用示例和类型边界见 [Vue 与第三方组件导入](docs/vue-js-components.md)。
 
+## 双向绑定
+
+属性与 `update:属性名` 事件配对时，生成 `bindXxx` 参数；`modelValue` 另提供 `vModel` 别名：
+
+```kotlin
+private var text by ref("")
+private var visible by ref(false)
+
+override val body = RenderFun {
+    ElInput(vModel = text)
+    ElDialog(bindModelValue = visible)
+    // 自己的组件也支持同样的配对，例如 @Prop visible / @Emit(name = "update:visible")。
+    // Popup(bindVisible = visible)
+}
+```
+
+直接传入可写变量或属性。`org.kvue` 自动接入编译器插件，将其展开为读取和 update 回调中的赋值。
+只读值、不可访问的 setter、普通表达式和冲突参数会在构建期报错；KVUE IDEA 插件也会标红。
+详细规则见 [IDE 与构建集成](docs/ide-and-build.md#双向绑定的编译器展开)。
+
 ## 声明和调用组件
 
 以下示例放在现有示例的 `test` 包中，复用 `button`、`tdiv` 等 HTML helper：

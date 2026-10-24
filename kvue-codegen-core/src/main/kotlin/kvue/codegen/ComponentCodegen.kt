@@ -19,6 +19,8 @@ import com.squareup.kotlinpoet.UNIT
 
 object ComponentCodegen {
     fun generate(model: ComponentModel, declarationsOnly: Boolean = false): List<FileSpec> {
+        require(model.bindingNameConflicts().isEmpty()) { "Conflicting binding parameter names: ${model.bindingNameConflicts()}" }
+        val bindings = model.bindings
         val files = mutableListOf<FileSpec>()
         val visibility = model.visibility
         val definition = if (declarationsOnly) CodeBlock.of("error(%S)", "IDE declaration only")
@@ -43,6 +45,10 @@ object ComponentCodegen {
                 else -> prop.type.copy(nullable = true)
             }
             val parameter = ParameterSpec.builder(prop.name, type)
+            if (prop.required && bindings.any { it.prop == prop }) {
+                parameter.addAnnotation(REQUIRED_BINDING_PROP)
+                parameter.defaultValue("%M(%S)", REQUIRED_PROP_DEFAULT, prop.name)
+            }
             if (!prop.required) {
                 if (prop.nullable) parameter.defaultValue("%T.Omitted", OPTIONAL_PROP)
                 else parameter.defaultValue("null")
@@ -56,6 +62,15 @@ object ComponentCodegen {
             ).copy(nullable = true)
             dsl.addParameter(ParameterSpec.builder(event.parameterName, callbackType).defaultValue("null").build())
         }
+        bindings.forEach { binding ->
+            binding.parameterNames.forEach { name ->
+                dsl.addParameter(ParameterSpec.builder(name, binding.prop.type)
+                    .addAnnotation(AnnotationSpec.builder(V_BIND)
+                        .addMember("prop = %S, event = %S, variadic = %L", binding.prop.name, binding.event.parameterName, binding.event.variadic).build())
+                    .defaultValue("%M()", OMITTED_BINDING)
+                    .build())
+            }
+        }
         dsl.addParameter(ParameterSpec.builder("key", ANY.copy(nullable = true)).defaultValue("null").build())
         dsl.addParameter(ParameterSpec.builder("content", RENDER_FUN.copy(nullable = true)).defaultValue("null").build())
 
@@ -66,8 +81,16 @@ object ComponentCodegen {
                 .addFunction(dsl.addStatement("error(%S)", "IDE declaration only").build())
                 .build())
         }
-        val usedNames = model.props.map { it.name } + model.events.map { it.parameterName } + listOf("key", "content")
+        val usedNames = model.props.map { it.name } + model.events.map { it.parameterName } + bindings.flatMap { it.parameterNames } + listOf("key", "content")
         val node = generateSequence("node") { it + "_" }.first { it !in usedNames }
+        if (bindings.isNotEmpty()) {
+            val checks = CodeBlock.builder()
+            bindings.flatMap { it.parameterNames }.forEachIndexed { index, name ->
+                if (index > 0) checks.add(", ")
+                checks.add("%N", name)
+            }
+            dsl.addStatement("%M(%L)", CHECK_BINDINGS, checks.build())
+        }
         dsl.addStatement("val %N = %T(%T.definition)", node, ELEMENT_NODE, model.generatedName)
         model.props.forEach { prop ->
             val value = if (prop.required || !prop.nullable) CodeBlock.of("%N", prop.name) else CodeBlock.of("%N.value", prop.name)
@@ -185,3 +208,8 @@ private val JS_NON_MODULE = ClassName("kotlin.js", "JsNonModule")
 private val JS_NAME = ClassName("kotlin.js", "JsName")
 private val DEFAULT_EXPORT = MemberName("kvue", "jsDefaultExport")
 private val VARIADIC_CALLBACK = MemberName("kvue", "variadicJsCallback")
+private val V_BIND = ClassName("kvue.annotation", "VBind")
+private val REQUIRED_BINDING_PROP = ClassName("kvue.annotation", "RequiredBindingProp")
+private val OMITTED_BINDING = MemberName("kvue", "omittedBinding")
+private val CHECK_BINDINGS = MemberName("kvue", "checkBindingArguments")
+private val REQUIRED_PROP_DEFAULT = MemberName("kvue", "requiredBindingProp")

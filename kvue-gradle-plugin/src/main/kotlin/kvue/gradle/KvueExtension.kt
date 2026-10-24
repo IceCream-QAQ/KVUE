@@ -23,6 +23,8 @@ abstract class KvueExtension @Inject constructor(objects: ObjectFactory, provide
     val addProcessorDependency: Property<Boolean> = objects.property(Boolean::class.java).convention(true)
     val runtimeProject: Property<String> = objects.property(String::class.java)
     val processorProject: Property<String> = objects.property(String::class.java)
+    val compilerProject: Property<String> = objects.property(String::class.java)
+    val compilerPluginEnabled: Property<Boolean> = objects.property(Boolean::class.java).convention(true)
     val componentsFile: RegularFileProperty = objects.fileProperty()
     val testComponentsFile: RegularFileProperty = objects.fileProperty()
     val typescriptVersion: Property<String> = objects.property(String::class.java).convention("6.0.3")

@@ -14,6 +14,9 @@ import org.jetbrains.kotlin.gradle.tasks.AbstractKotlinCompileTool
 class KvuePlugin : Plugin<Project> {
     override fun apply(project: Project) {
         val extension = project.extensions.create("kvue", KvueExtension::class.java)
+        project.pluginManager.withPlugin("org.jetbrains.kotlin.multiplatform") {
+            project.pluginManager.apply(KvueCompilerSubplugin::class.java)
+        }
         val defaultConfiguration = project.layout.projectDirectory.file("kvue.components.json")
         if (defaultConfiguration.asFile.isFile) extension.componentsFile.convention(defaultConfiguration)
         project.afterEvaluate {

@@ -103,10 +103,15 @@ internal object KotlinComponentReader {
         require(props.all { names.add(it.name) } && events.all { names.add(it.parameterName) }) { "Conflicting DSL parameter name." }
         require(events.map { it.eventName }.distinct().size == events.size) { "Duplicate event name." }
         val classId = checkNotNull(symbol.classId)
+        val model = ComponentModel(ClassName(classId.packageFqName.asString(), classId.shortClassName.asString()),
+            props.sortedBy { !it.required }, events, jsImport,
+            if (symbol.visibility == KaSymbolVisibility.INTERNAL) KModifier.INTERNAL else KModifier.PUBLIC)
+        require(model.bindingNameConflicts().isEmpty()) { "Conflicting binding parameter names: ${model.bindingNameConflicts()}" }
+        model.bindings.forEach { binding ->
+            navigation[binding.prop.name]?.let { pointer -> binding.parameterNames.forEach { navigation[it] = pointer } }
+        }
         EditorComponent(
-            ComponentModel(ClassName(classId.packageFqName.asString(), classId.shortClassName.asString()),
-                props.sortedBy { !it.required }, events, jsImport,
-                if (symbol.visibility == KaSymbolVisibility.INTERNAL) KModifier.INTERNAL else KModifier.PUBLIC),
+            model,
             pointerManager.createSmartPsiElementPointer(declaration), navigation,
         )
     }

@@ -9,6 +9,9 @@ repositories {
     mavenCentral()
 }
 
+// This example consumes locally published development snapshots.
+configurations.configureEach { resolutionStrategy.cacheChangingModulesFor(0, "seconds") }
+
 kotlin {
     js {
         browser {

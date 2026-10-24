@@ -5,7 +5,7 @@
 首次使用，在仓库根目录以 JDK 21 运行，准备工作区内的开发依赖仓库：
 
 ```powershell
-.\gradlew.bat --init-script tools/publish-demo.gradle :kvue-codegen-core:publishAllPublicationsToKvueDemoRepository :kvue-ksp:publishAllPublicationsToKvueDemoRepository :kvue-runtime:publishAllPublicationsToKvueDemoRepository :kvue-gradle-plugin:publishAllPublicationsToKvueDemoRepository
+.\gradlew.bat --init-script tools/publish-demo.gradle :kvue-codegen-core:publishAllPublicationsToKvueDemoRepository :kvue-ksp:publishAllPublicationsToKvueDemoRepository :kvue-runtime:publishAllPublicationsToKvueDemoRepository :kvue-compiler-plugin:publishAllPublicationsToKvueDemoRepository :kvue-gradle-plugin:publishAllPublicationsToKvueDemoRepository
 ```
 
 然后在本目录运行：
@@ -18,8 +18,8 @@
 
 用装有 KVUE 插件的 IDEA 262 打开本目录并完成 Gradle 同步。主要查看：
 
-- `src/jsMain/kotlin/demo/Playground.kt`：Element Plus 的类型化参数、事件回调，以及 `GreetingCard(...)` 调用。
-- `src/jsMain/kotlin/demo/GreetingCard.kt`：带 `@Prop` / `@Emit` 的 class 组件。修改声明后，编辑器会更新对应的 DSL 提示。
+- `src/jsMain/kotlin/demo/Playground.kt`：`ElInput(vModel = name)`、`ElSwitch(bindModelValue = enabled)`、`GreetingCard(bindName = name)`，均直接绑定可写属性。
+- `src/jsMain/kotlin/demo/GreetingCard.kt`：带 `@Prop` / `@Emit` 的 class 组件，`update:name` 会回写父组件的 name。修改声明后，编辑器会更新对应的 DSL 提示。
 - `kvue.components.json`：从 Element Plus 的 TypeScript 声明批量导入组件。
 
 `exposeGeneratedSources` 没有显式设置：IDEA 插件在同步和执行任务时注入默认关闭，普通终端默认为打开。

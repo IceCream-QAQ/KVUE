@@ -220,9 +220,12 @@ private class ComponentProcessor(
             if (!eventNames.add(it.eventName)) reject("Event '${it.eventName}' is declared more than once.", memberSources[it.propertyName] ?: component)
         }
         if (!valid) return null
+        val model = ComponentModel(className, props.sortedBy { !it.required }, events, jsImport,
+            if (component.getVisibility() == Visibility.INTERNAL) KModifier.INTERNAL else KModifier.PUBLIC)
+        model.bindingNameConflicts().forEach { reject("Binding parameter '$it' conflicts with an existing DSL parameter.") }
+        if (!valid) return null
         return ParsedComponent(
-            ComponentModel(className, props.sortedBy { !it.required }, events, jsImport,
-                if (component.getVisibility() == Visibility.INTERNAL) KModifier.INTERNAL else KModifier.PUBLIC),
+            model,
             (listOf(component.containingFile) + declarations.map { it.first.containingFile }).filterNotNull().distinct().toTypedArray(),
         )
     }
