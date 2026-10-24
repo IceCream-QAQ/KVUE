@@ -1,11 +1,11 @@
 # KVUE × Element Plus
 
-独立的 Kotlin/JS 示例，使用 Maven 形式的 KVUE 开发版依赖，以及 npm 中的 Element Plus 2.14.7。
+独立的 Kotlin/JS 示例，使用 Maven 形式的 KVUE / KVUI 开发版依赖，以及 npm 中的 Element Plus 2.14.7。
 
 首次使用，在仓库根目录以 JDK 21 运行，准备工作区内的开发依赖仓库：
 
 ```powershell
-.\gradlew.bat --init-script tools/publish-demo.gradle :kvue-codegen-core:publishAllPublicationsToKvueDemoRepository :kvue-ksp:publishAllPublicationsToKvueDemoRepository :kvue-runtime:publishAllPublicationsToKvueDemoRepository :kvue-compiler-plugin:publishAllPublicationsToKvueDemoRepository :kvue-gradle-plugin:publishAllPublicationsToKvueDemoRepository
+.\gradlew.bat --init-script tools/publish-demo.gradle :kvue-codegen-core:publishAllPublicationsToKvueDemoRepository :kvue-ksp:publishAllPublicationsToKvueDemoRepository :kvue-runtime:publishAllPublicationsToKvueDemoRepository :kvui:publishAllPublicationsToKvueDemoRepository :kvue-compiler-plugin:publishAllPublicationsToKvueDemoRepository :kvue-gradle-plugin:publishAllPublicationsToKvueDemoRepository
 ```
 
 然后在本目录运行：
@@ -20,6 +20,7 @@
 
 - `src/jsMain/kotlin/demo/Playground.kt`：`ElInput(vModel = name)`、`ElSwitch(bindModelValue = enabled)`、`GreetingCard(bindName = name)`，均直接绑定可写属性。
 - `src/jsMain/kotlin/demo/GreetingCard.kt`：带 `@Prop` / `@Emit` 的 class 组件，`update:name` 会回写父组件的 name。修改声明后，编辑器会更新对应的 DSL 提示。
+- 页面中的 `main`、`div`、`label`、标题和文本使用 `kvui.*`，无需维护项目私有 HTML helper。
 - `kvue.components.json`：从 Element Plus 的 TypeScript 声明批量导入组件。
 
 `exposeGeneratedSources` 没有显式设置：IDEA 插件在同步和执行任务时注入默认关闭，普通终端默认为打开。

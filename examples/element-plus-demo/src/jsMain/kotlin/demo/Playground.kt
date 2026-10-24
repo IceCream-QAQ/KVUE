@@ -10,6 +10,7 @@ import demo.elementplus.ElTag
 import kvue.Component
 import kvue.annotation.VueComponent
 import kvue.vdom.RenderFun
+import kvui.*
 
 @VueComponent
 class Playground : Component() {
@@ -18,28 +19,28 @@ class Playground : Component() {
     private var enabled by ref(true)
 
     override val body = RenderFun {
-        tag("main", "playground") {
-            tag("header", "hero") {
-                tag("div", "eyebrow") { text("KVUE  /  COMPONENT PLAYGROUND") }
-                tag("h1") { text("Kotlin 写组件，Vue 来渲染。") }
-                tag("p", "intro") { text("试试输入、开关和按钮。这里的界面由 Element Plus 与 Kotlin class 组件共同组成。") }
-                tag("div", "badges") {
+        main(className = "playground") {
+            header(className = "hero") {
+                div(className = "eyebrow") { text("KVUE  /  COMPONENT PLAYGROUND") }
+                h1 { text("Kotlin 写组件，Vue 来渲染。") }
+                p(className = "intro") { text("试试输入、开关和按钮。这里的界面由 KVUI、Element Plus 与 Kotlin class 组件共同组成。") }
+                div(className = "badges") {
                     ElTag(type = "success", effect = "plain", round = true) { text("Kotlin + Vue 3") }
                     ElTag(type = "primary", effect = "plain", round = true) { text("Element Plus 2.14.7") }
                 }
             }
 
-            tag("div", "grid") {
+            div(className = "grid") {
                 ElCard(header = "01 / 输入与状态", shadow = "never") {
-                    tag("label", "field-label") { text("你的名字") }
+                    label(className = "field-label") { text("你的名字") }
                     ElInput(
                         vModel = name,
                         placeholder = "输入名字，看看下方的问候",
                         clearable = true,
                         size = "large",
                     )
-                    tag("div", "switch-row") {
-                        tag("span") { text("启用计数器") }
+                    div(className = "switch-row") {
+                        span { text("启用计数器") }
                         ElSwitch(
                             bindModelValue = enabled,
                             ariaLabel = "启用计数器",
@@ -54,9 +55,9 @@ class Playground : Component() {
                 }
 
                 ElCard(header = "02 / 事件与渲染", shadow = "never") {
-                    tag("div", "counter-value") { text(count.toString()) }
-                    tag("p", "muted") { text("每次点击都由 Kotlin 回调更新 Vue 响应式状态。") }
-                    tag("div", "button-row") {
+                    div(className = "counter-value") { text(count.toString()) }
+                    p(className = "muted") { text("每次点击都由 Kotlin 回调更新 Vue 响应式状态。") }
+                    div(className = "button-row") {
                         ElButton(
                             type = "primary",
                             size = "large",
@@ -73,7 +74,7 @@ class Playground : Component() {
 
             // 自己声明的 class，也由插件提供同名 RenderGroup 扩展函数。
             GreetingCard(bindName = name, onReset = { count = 0 })
-            tag("footer", "footer") { text("KVUE · 一个独立的 Kotlin/JS + Element Plus 工程") }
+            footer(className = "footer") { text("KVUE · KVUI 原生元素 + Element Plus") }
         }
     }
 }

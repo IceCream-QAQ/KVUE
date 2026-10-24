@@ -7,6 +7,7 @@ import kvue.annotation.Emit
 import kvue.annotation.Prop
 import kvue.annotation.VueComponent
 import kvue.vdom.RenderFun
+import kvui.*
 
 @VueComponent
 class GreetingCard : Component() {
@@ -21,12 +22,12 @@ class GreetingCard : Component() {
 
     override val body = RenderFun {
         ElCard(header = "03 / Kotlin class 组件", shadow = "never") {
-            tag("div", "greeting-row") {
-                tag("div") {
-                    tag("h2") { text("你好，${name.ifBlank { "朋友" }}。") }
-                    tag("p", "muted") { text("name 通过 bindName 双向同步，reset 事件单独处理。") }
+            div(className = "greeting-row") {
+                div {
+                    h2 { text("你好，${name.ifBlank { "朋友" }}。") }
+                    p(className = "muted") { text("name 通过 bindName 双向同步，reset 事件单独处理。") }
                 }
-                tag("div", "button-row") {
+                div(className = "button-row") {
                     ElButton(plain = true, onClick = { updateName("KVUE") }) { text("名字设为 KVUE") }
                     ElButton(plain = true, onClick = { reset() }) { text("从子组件重置") }
                 }

@@ -7,6 +7,7 @@
 | 部分 | 职责 | 直接依赖 |
 | --- | --- | --- |
 | `kvue-runtime` | 运行时、注解、Vue 绑定，以及生成实现调用的公共 API | Kotlin/JS、Vue |
+| `kvui` | 标准 HTML 元素 DSL、类型化 DOM 属性和事件、原生表单绑定 | runtime、Kotlin DOM API |
 | `kvue-codegen-core` | 独立组件模型、参数命名、可选参数规则、Kotlin 实现和编辑期声明生成 | KotlinPoet |
 | `kvue-ksp` | 读取 KSP 符号、解析别名和泛型继承、验证组件、写出实际源码 | KSP API、codegen-core |
 | `kvue-compiler-plugin` | 检查调用处的可写目标，把绑定参数展开为 prop 读取与 update 事件赋值 | Kotlin 2.4.21 compiler IR API |
@@ -21,6 +22,7 @@ IDE 与 KSP 调用同一个 `ComponentCodegen`；IDE 仅生成有明确类型的
 ```mermaid
 flowchart LR
     R[runtime]
+    U[kvui / HTML 元素] --> R
     K[KSP 适配器] --> C[codegen-core]
     I[IDE 插件] --> C
     K --> F[实际 Kotlin 实现]
@@ -83,6 +85,10 @@ npm 准备 → generateKvueJsComponents → KSP → Kotlin/JS 编译 → 打包
 
 消费方分别在 `pluginManagement.repositories` 和普通 `repositories` 中添加 `mavenLocal()`。
 插件包包含 JS 分析脚本，消费方无需复制本仓库的 `tools` 目录。
+
+需要标准 DOM 元素时，另外发布 `:kvui:publishToMavenLocal`，并在消费方 `jsMain` 中添加
+`implementation("org.kvue:kvui:0.1.0-SNAPSHOT")`。Gradle 插件不会自动添加 UI 包。
+KVUI 的标签是普通编译库声明，无需 KSP 生成或 IDEA 虚拟声明；表单绑定使用相同的二进制 `@VBind` 契约。
 
 ## 双向绑定的编译器展开
 

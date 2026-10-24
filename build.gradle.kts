@@ -31,6 +31,7 @@ kotlin {
             kotlin.srcDir("src/main/kotlin")
             resources.srcDir("src/main/resources")
             dependencies {
+                implementation(project(":kvui"))
                 implementation(npm("element-plus", "2.14.7"))
                 implementation("org.jetbrains.kotlin:kotlin-dom-api-compat:2.4.21")
                 implementation("org.jetbrains.kotlinx:kotlinx-html-js:0.12.0")
@@ -64,4 +65,9 @@ val testJsComponentImporter = tasks.register<Exec>("testJsComponentImporter") {
     environment("KVUE_NODE_MODULES", layout.buildDirectory.dir("js/node_modules").get().asFile.absolutePath)
     doFirst { commandLine(nodeJs.executable.get(), "--test", "tools/js-components/generate.test.cjs") }
 }
-tasks.named("check") { dependsOn(testJsComponentImporter) }
+val checkKvuiElements = tasks.register<Exec>("checkKvuiElements") {
+    group = "verification"
+    dependsOn("kotlinNodeJsSetup")
+    doFirst { commandLine(nodeJs.executable.get(), "tools/kvui/generate.cjs", "--check") }
+}
+tasks.named("check") { dependsOn(testJsComponentImporter, checkKvuiElements) }

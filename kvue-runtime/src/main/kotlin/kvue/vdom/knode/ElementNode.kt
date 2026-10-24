@@ -5,7 +5,9 @@ import kvue.`fun`.toJavaScriptObject
 import kvue.vdom.RenderFun
 import kvue.vdom.buildVNodes
 import vue.VNode
+import vue.Directive
 import vue.createVNode
+import vue.withDirectives
 
 class ElementNode(
     private val type: dynamic
@@ -13,6 +15,7 @@ class ElementNode(
 
     private val properties = linkedMapOf<String, Any?>()
     private val children = linkedMapOf<String, MutableList<RenderFun>>()
+    private val directives = mutableListOf<Array<Any?>>()
 
     fun property(name: String, value: Any?) {
         properties[name] = value
@@ -26,6 +29,15 @@ class ElementNode(
         children.getOrPut(name) { mutableListOf() }.add(renderFun)
     }
 
+    /** Applied while the VNode is built inside Vue's current render context. */
+    fun directive(
+        directive: Directive,
+        value: Any? = null,
+        argument: String? = null,
+        modifiers: Map<String, Boolean> = emptyMap(),
+    ) {
+        directives.add(arrayOf(directive, value, argument, modifiers.toJavaScriptObject()))
+    }
 
     override fun buildVNode(): VNode {
         val vueChildren: dynamic = if (type is String) {
@@ -36,11 +48,12 @@ class ElementNode(
                 { blocks.flatMap { it.buildVNodes().asList() }.toTypedArray() }
             }.toJavaScriptObject()
         }
-        return createVNode(
+        val vnode = createVNode(
             if (type is VueComponentType) type.vue else type,
             properties.toJavaScriptObject(),
             vueChildren,
         )
+        return if (directives.isEmpty()) vnode else withDirectives(vnode, directives.toTypedArray())
     }
 
 }

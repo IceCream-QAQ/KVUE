@@ -6,8 +6,11 @@ import kvue.annotation.VueComponent
 import kvue.vdom.RenderContext
 import kvue.vdom.RenderFun
 import kvue.vdom.knode.ElementNode
-import kvue.vdom.knode.StringKNode
-import kotlin.reflect.KMutableProperty0
+import kvui.div
+import kvui.hr
+import kvui.input
+import kvui.text
+import kvui.button as domButton
 
 @VueComponent
 class App : Component() {
@@ -35,28 +38,16 @@ class SubComponent : Component() {
 
     override val body = RenderFun {
 
-        input(::text)
+        input(vModel = text)
 
         for (i in 1..num)
             tdiv("SubComponent: $i, $text")
     }
 
-    private fun <T> RenderContext.input(vModel: KMutableProperty0<T>) = ElementNode("input").apply {
-        addElement(this)
-        property("value", vModel.get())
-        property("onInput", { event: dynamic -> vModel.set(event.target.value) })
-    }
 }
 
-fun RenderContext.tdiv(text: String) = ElementNode("div").apply {
-    addElement(this)
-    slot("default") { addElement(StringKNode(text)) }
-}
+// Compatibility helpers used by the older component fixtures.
+fun RenderContext.tdiv(value: String): ElementNode = div { text(value) }
 
-fun RenderContext.button(text: String, onClick: (() -> Unit)? = null) = ElementNode("button").apply {
-    addElement(this)
-    onClick?.let { onClick(it) }
-    slot("default") { addElement(StringKNode(text)) }
-}
-
-fun RenderContext.hr() = ElementNode("hr").apply { addElement(this) }
+fun RenderContext.button(value: String, onClick: (() -> Unit)? = null): ElementNode =
+    domButton(onClick = onClick?.let { handler -> { _ -> handler() } }) { text(value) }

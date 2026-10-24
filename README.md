@@ -2,7 +2,7 @@
 
 用 Kotlin class 声明 Vue 组件，由 KSP 生成 Vue 组件定义和类型安全的渲染 DSL。
 
-运行库位于 `kvue-runtime`，共享生成规则位于 `kvue-codegen-core`。根项目是示例应用，通过
+运行库位于 `kvue-runtime`，标准 HTML 元素封装位于 `kvui`，共享生成规则位于 `kvue-codegen-core`。根项目是示例应用，通过
 `org.kvue` Gradle 插件配置构建。可选的 `kvue-idea` 插件提供 K2 编辑期虚拟声明，解决生成前的组件解析与导入。
 模块依赖、Gradle 接入、IDE 插件构建和安装见 [IDE 与构建集成](docs/ide-and-build.md)。
 
@@ -25,6 +25,23 @@
 `kvue { exposeGeneratedSources.set(false) }` 可让 KVUE 生成源仅参与构建，不进入 IDE 源目录。
 无 IDEA 插件时默认打开；安装插件后，IDE 同步和构建会注入关闭的默认值。显式 DSL、用户环境变量或
 `-Pkvue.exposeGeneratedSources=true` 可覆盖，完整优先级见上述集成说明。
+
+## 标准 DOM 元素
+
+添加 `org.kvue:kvui:0.1.0-SNAPSHOT` 依赖并导入 `kvui.*`，即可使用 `div`、`input`、`button` 等 111 个标准 HTML 标签函数：
+
+```kotlin
+override val body = RenderFun {
+    div(className = "editor") {
+        input(vModel = name, placeholder = "你的名字")
+        button(type = "button", onClick = { name = "KVUI" }) { text("更新") }
+        p { text("你好，$name") }
+    }
+}
+```
+
+其中 `name` 是 `private var name by ref("")`。标签直接渲染原生元素；属性、DOM 事件、`key` 和尾随内容 lambda 均可使用。
+`input`、`textarea`、`select` 通过 Vue 原生表单指令支持 `vModel` / `bindModelValue`。完整写法、类型边界和依赖说明见 [KVUI](kvui/README.md)。
 
 ## 自动导入第三方 JS 组件
 
@@ -59,7 +76,7 @@ override val body = RenderFun {
 
 ## 声明和调用组件
 
-以下示例放在现有示例的 `test` 包中，复用 `button`、`tdiv` 等 HTML helper：
+以下示例使用 KVUI 的标准元素函数：
 
 ```kotlin
 package test
@@ -69,6 +86,9 @@ import kvue.annotation.Emit
 import kvue.annotation.Prop
 import kvue.annotation.VueComponent
 import kvue.vdom.RenderFun
+import kvui.button
+import kvui.div
+import kvui.text
 
 @VueComponent
 class Counter : Component() {
@@ -81,10 +101,10 @@ class Counter : Component() {
     private var count by ref(initial)
 
     override val body = RenderFun {
-        button("Count: $count") {
+        button(onClick = {
             count++
             changed(count)
-        }
+        }) { text("Count: $count") }
         slot()
     }
 }
@@ -100,7 +120,7 @@ KSP 为它生成两项 API：
 ```kotlin
 override val body = RenderFun {
     Counter(initial = 2, onChanged = { value -> println(value) }, key = "left") {
-        tdiv("默认插槽")
+        div { text("默认插槽") }
     }
     Counter(initial = 10, key = "right")
 }
@@ -160,7 +180,7 @@ private val modelChanged: (String) -> Unit by event()
 事件名称同时写入 Vue 的 `emits`；组件内部的调用通过当前实例的 `setupContext.emit` 发出。
 父组件替换回调后，后续事件会使用新的监听器。
 
-这里只生成事件和 prop 的映射，尚未生成 `model = ::property` 形式的双向绑定语法。
+配对的属性与 update 事件同时提供直接绑定可写变量的 `bindXxx` / `vModel` 参数，见上文双向绑定。
 
 ## Slots 和节点属性
 
@@ -170,7 +190,7 @@ private val modelChanged: (String) -> Unit by event()
 ```kotlin
 Counter(initial = 1).apply {
     property("class", "counter")
-    slot("header") { tdiv("标题") }
+    slot("header") { div { text("标题") } }
 }
 ```
 

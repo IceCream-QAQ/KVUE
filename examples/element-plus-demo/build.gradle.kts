@@ -24,6 +24,7 @@ kotlin {
     }
     sourceSets {
         jsMain.dependencies {
+            implementation("org.kvue:kvui:0.1.0-SNAPSHOT")
             implementation(npm("element-plus", "2.14.7"))
             implementation("org.jetbrains.kotlin:kotlin-dom-api-compat:2.4.21")
         }
