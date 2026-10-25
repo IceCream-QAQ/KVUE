@@ -5,6 +5,7 @@
 运行库位于 `kvue-runtime`，标准 HTML 元素封装位于 `kvui`，共享生成规则位于 `kvue-codegen-core`。
 根项目只管理插件版本、模块和检查任务汇总；源码及测试随各自模块存放。交互示例位于 `examples/element-plus-demo`。
 可选的 `kvue-idea` 插件提供 K2 编辑期虚拟声明，解决生成前的组件解析与导入。
+Ctrl+点击虚拟组件可回到 Kotlin class，或第三方库的 `.d.ts` / JS 声明。
 模块依赖、Gradle 接入、IDE 插件构建和安装见 [IDE 与构建集成](docs/ide-and-build.md)。
 
 ## 构建

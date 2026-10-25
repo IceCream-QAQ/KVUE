@@ -11,8 +11,6 @@ import com.intellij.openapi.application.PathManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.psi.PsiElement
-import com.intellij.psi.PsiManager
-import com.intellij.psi.SmartPointerManager
 import com.squareup.kotlinpoet.ClassName
 import kvue.codegen.*
 import org.jetbrains.kotlin.analysis.api.KaSession
@@ -25,7 +23,13 @@ import java.nio.file.Files
 import java.nio.file.Path
 import java.security.MessageDigest
 
-internal data class ImportedComponent(val model: ComponentModel, val schema: String, val source: String?)
+internal data class ImportedComponent(
+    val model: ComponentModel,
+    val schema: String,
+    val source: String?,
+    val navigation: ImportedSourceLocation? = null,
+    val moduleSource: String? = null,
+)
 internal data class ExternalLibrary(val configuration: Path, val sourceRoots: List<Path>, val components: List<ImportedComponent>)
 internal data class ExternalSnapshot(val libraries: List<ExternalLibrary> = emptyList(), val watchedPaths: Set<String> = emptySet(), val diagnostics: List<String> = emptyList())
 
@@ -64,7 +68,13 @@ internal object ExternalComponents {
             }
             val report = JsonParser.parseString(result.stdout).asJsonObject
             for (key in listOf("declarations", "sources")) report.getAsJsonArray(key)?.forEach { watched += it.asString.replace('\\', '/') }
-            libraries += ExternalLibrary(configuration, sourceRoots, parse(report))
+            val components = parse(report)
+            val navigationFiles = components.flatMap { listOfNotNull(it.navigation?.file, it.source, it.moduleSource) }.toSet()
+            // This is the background IO phase, outside Kotlin analysis/read callbacks.
+            // Refresh explicit targets even when npm/build directories are excluded from indexing.
+            navigationFiles.forEach { LocalFileSystem.getInstance().refreshAndFindFileByPath(it.replace('\\', '/')) }
+            watched += navigationFiles.map { it.replace('\\', '/') }
+            libraries += ExternalLibrary(configuration, sourceRoots, components)
         }
         return ExternalSnapshot(libraries, watched, diagnostics)
     }
@@ -89,9 +99,14 @@ internal object ExternalComponents {
                 EventModel(event.get("memberName").asString, event.get("name").asString,
                     event.getAsJsonArray("arguments").map { importedType(it.asString) }, event.get("variadic").asBoolean)
             }
+            val navigation = component.get("navigation")?.takeIf { it.isJsonObject }?.asJsonObject?.let { target ->
+                ImportedSourceLocation(target.get("file").asString, target.get("line").asInt, target.get("column").asInt,
+                    target.get("length").asInt, target.get("text")?.takeUnless { it.isJsonNull }?.asString)
+            }
             ImportedComponent(ComponentModel(className, props, events,
                 JsImportModel(component.get("module").asString, component.get("exportName").asString)),
-                schemas.getValue(className.canonicalName), component.get("source")?.takeUnless { it.isJsonNull }?.asString)
+                schemas.getValue(className.canonicalName), component.get("source")?.takeUnless { it.isJsonNull }?.asString,
+                navigation, component.get("moduleSource")?.takeUnless { it.isJsonNull }?.asString)
         }
     }
 
@@ -110,10 +125,7 @@ internal object ExternalComponents {
 }
 
 internal fun ImportedComponent.virtualFiles(project: Project, configuration: Path): List<KaResolveExtensionFile> {
-    val originFile = source?.let { LocalFileSystem.getInstance().findFileByPath(it.replace('\\', '/')) }
-        ?: LocalFileSystem.getInstance().findFileByNioFile(configuration)
-    val origin = originFile?.let { PsiManager.getInstance(project).findFile(it) }
-    val pointer = origin?.let { SmartPointerManager.getInstance(project).createSmartPsiElementPointer(it) }
+    val navigation = ExternalNavigation(project, this, configuration)
     val dsl = ComponentCodegen.generate(model, declarationsOnly = true).single().toString()
     fun file(fileName: String, text: String, classifiers: Set<Name>, callables: Set<Name>) = object : KaResolveExtensionFile() {
         override fun getFileName() = fileName
@@ -122,7 +134,7 @@ internal fun ImportedComponent.virtualFiles(project: Project, configuration: Pat
         override fun getTopLevelCallableNames() = callables
         override fun buildFileText() = text
         override fun createNavigationTargetsProvider() = object : KaResolveExtensionNavigationTargetsProvider() {
-            override fun KaSession.getNavigationTargets(element: KtElement): Collection<PsiElement> = listOfNotNull(pointer?.element)
+            override fun KaSession.getNavigationTargets(element: KtElement): Collection<PsiElement> = navigation.targets()
         }
     }
     return listOf(

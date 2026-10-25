@@ -3,6 +3,7 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
+const { createRequire } = require('node:module');
 const sourceAnalyzer = require('./source-analysis.cjs');
 
 const GLOBAL_PROPS = new Set(['key', 'ref', 'ref_for', 'ref_key', 'class', 'style']);
@@ -48,6 +49,20 @@ function selection(library, exported) {
   if (Array.isArray(library.exports)) return library.exports.map(name => [name, null]);
   if (library.exports && typeof library.exports === 'object') return Object.entries(library.exports);
   throw new Error(`Invalid exports selection for ${library.module}`);
+}
+
+// Line/column use UTF-16 units like IntelliJ documents. Absolute offsets would drift
+// when the IDE normalizes CRLF files to LF, so they are deliberately not serialized.
+function declarationLocation(symbol) {
+  const declaration = symbol.valueDeclaration || symbol.declarations?.[0];
+  if (!declaration) return null;
+  const file = declaration.getSourceFile();
+  const node = declaration.name || declaration.getFirstToken(file) || declaration;
+  const start = node.getStart(file);
+  const position = file.getLineAndCharacterOfPosition(start);
+  const text = node.getText(file).slice(0, 256);
+  return { file: path.resolve(file.fileName).replaceAll('\\', '/'),
+    line: position.line + 1, column: position.character + 1, length: text.length, text };
 }
 
 function analyze(config, nodeModules, configDirectory = process.cwd()) {
@@ -107,6 +122,7 @@ function analyze(config, nodeModules, configDirectory = process.cwd()) {
   const symbolType = symbol => checker.getTypeOfSymbolAtLocation(symbol, symbol.valueDeclaration || symbol.declarations?.[0] || source);
   const propertyType = (type, name) => { const symbol = type.getProperty(name); return symbol && symbolType(symbol); };
   const nonNullable = type => checker.getNonNullableType(type);
+  const resolveRuntime = createRequire(path.resolve(configDirectory, '__kvue_navigation__.cjs'));
   const warn = (reason, type, origin = {}) => diagnostics.push({ ...location, ...origin, reason, typescript: typeof type === 'string' ? type : typeText(type) });
   const sourceReader = sourceAnalyzer(ts, checker, warn, program.getSourceFiles());
   function fallback(type, reason, mayBeNull = false) {
@@ -310,6 +326,10 @@ function analyze(config, nodeModules, configDirectory = process.cwd()) {
     const moduleSymbol = checker.getSymbolAtLocation(statement.moduleSpecifier);
     if (!moduleSymbol) throw new Error(`Cannot resolve declarations or source for ${library.module}.`);
     const exported = new Map(checker.getExportsOfModule(moduleSymbol).map(symbol => [symbol.name, symbol]));
+    // Resolution only: importing component library code here would execute arbitrary application code.
+    let moduleSource = null;
+    try { moduleSource = resolveRuntime.resolve(library.module, { paths: [configDirectory, nodeModules] }).replaceAll('\\', '/'); }
+    catch { /* Import-only packages may not have a require entry; their analyzed source remains a fallback. */ }
     const exportEquals = moduleSymbol.exports?.get('export=');
     if (exportEquals) exported.set('export=', exportEquals);
     const explicit = library.exports !== '*' && library.exports !== undefined;
@@ -370,6 +390,7 @@ function analyze(config, nodeModules, configDirectory = process.cwd()) {
       }
       components.push({ module: library.module, package: library.package, name, exportName, kind: sourceInfo?.kind || shape.kind,
         analysis: sourceInfo ? 'source' : 'declaration', source: sourceInfo?.file || symbol.declarations?.[0]?.getSourceFile().fileName,
+        navigation: declarationLocation(symbol), moduleSource,
         props: props.sort((a, b) => a.name.localeCompare(b.name)), events,
         slots: shape.slots?.getProperties().map(symbol => symbol.name).sort() || [],
       });

@@ -5,17 +5,24 @@ package kvue.idea
 
 import com.intellij.codeInsight.completion.CompletionType
 import com.intellij.codeInsight.lookup.LookupElementPresentation
+import com.intellij.codeInsight.navigation.actions.GotoDeclarationAction
 import com.intellij.lang.annotation.HighlightSeverity
 import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.application.WriteAction
 import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.openapi.components.service
 import com.intellij.openapi.extensions.ExtensionPointName
+import com.intellij.openapi.fileEditor.FileDocumentManager
+import com.intellij.openapi.fileEditor.FileEditorManager
+import com.intellij.pom.Navigatable
 import com.intellij.psi.PsiDocumentManager
+import com.intellij.psi.PsiElement
+import com.intellij.psi.PsiFile
 import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.testFramework.PsiTestUtil
 import com.intellij.testFramework.TestApplicationManager
 import com.intellij.testFramework.fixtures.LightJavaCodeInsightFixtureTestCase
+import com.intellij.testFramework.fixtures.impl.TempDirTestFixtureImpl
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import com.intellij.facet.FacetManager
@@ -33,6 +40,7 @@ import java.nio.file.Path
 
 class KvueResolveTest : LightJavaCodeInsightFixtureTestCase() {
     override fun getProjectDescriptor() = JAVA_21
+    override fun getTempDirFixture() = TempDirTestFixtureImpl()
 
     override fun setUp() {
         TestApplicationManager.getInstance()
@@ -44,6 +52,9 @@ class KvueResolveTest : LightJavaCodeInsightFixtureTestCase() {
             { name, adapter -> !(name == "Z.Z.Z.Z.Z" && adapter.pluginDescriptor.pluginId.idString == "com.intellij.modules.ultimate") }, false,
         )
         super.setUp()
+        val sourceRoot = myFixture.tempDirFixture.findOrCreateDir("")
+        PsiTestUtil.addContentRoot(module, sourceRoot)
+        PsiTestUtil.addSourceRoot(module, sourceRoot)
         val stdlib = File(System.getProperty("kvue.test.stdlib"))
         PsiTestUtil.addLibrary(module, "kotlin-stdlib", stdlib.parent, stdlib.name)
         myFixture.addFileToProject("kvue/Annotations.kt", """
@@ -83,6 +94,8 @@ class KvueResolveTest : LightJavaCodeInsightFixtureTestCase() {
         """.trimIndent())
         myFixture.addFileToProject("kvue/Element.kt", "package kvue.vdom.knode\nclass ElementNode")
         assertTrue(KaResolveExtensionProvider.EP_NAME.getExtensionList(project).any { it is KvueResolveExtensionProvider })
+        assertTrue(ExtensionPointName.create<com.intellij.codeInsight.navigation.actions.GotoDeclarationHandler>("com.intellij.gotoDeclarationHandler")
+            .extensionList.any { it is KvueGotoDeclarationHandler })
     }
 
     fun testCrossPackageCallResolvesBeforeKspRuns() {
@@ -304,6 +317,137 @@ class KvueResolveTest : LightJavaCodeInsightFixtureTestCase() {
         assertTrue(function.valueParameters[1].typeReference!!.text.contains("OptionalProp<String?>"))
         assertEmpty(myFixture.doHighlighting(HighlightSeverity.ERROR))
         assertNull(myFixture.tempDirFixture.getFile("build/generated"))
+    }
+
+    fun testCtrlClickNavigatesToDeclarationWithCrLfAndUtf16Columns() {
+        val declaration = myFixture.addFileToProject("node_modules/widgets/actual.d.ts",
+            "// header\r\n/*😀*/ export declare const ActualWidget: { render(): unknown };\r\n")
+        val caller = navigationCaller()
+        publishNavigation(caller, declaration)
+        val target = gotoTargets().single()
+        val expected = declaration.text.indexOf("ActualWidget")
+        assertEquals(declaration.virtualFile, target.containingFile.virtualFile)
+        assertEquals(expected, target.textOffset)
+        assertEquals("ActualWidget", target.text)
+        (target as Navigatable).navigate(true)
+        val editor = FileEditorManager.getInstance(project).selectedTextEditor!!
+        assertEquals(declaration.virtualFile, FileDocumentManager.getInstance().getFile(editor.document))
+        assertEquals(expected, editor.caretModel.offset)
+    }
+
+    fun testJsNavigationTracksUnsavedEditsBeforeTheDeclaration() {
+        val declaration = myFixture.addFileToProject("node_modules/widgets/actual.mjs",
+            "// source\nexport const ActualWidget = { render() {} };\n")
+        val caller = navigationCaller()
+        publishNavigation(caller, declaration)
+        val target = gotoTargets().single()
+        val oldOffset = target.textOffset
+        val document = PsiDocumentManager.getInstance(project).getDocument(declaration)!!
+        val prefix = "// inserted without rerunning the analyzer\n"
+        WriteCommandAction.runWriteCommandAction(project) { document.insertString(0, prefix) }
+        PsiDocumentManager.getInstance(project).commitAllDocuments()
+        assertEquals(oldOffset + prefix.length, target.textOffset)
+        assertEquals("ActualWidget", target.text)
+        assertEquals(target.textOffset, gotoTargets().single().textOffset)
+    }
+
+    fun testNavigationRefreshesWhenOnlyTheDeclarationFileChanges() {
+        val first = myFixture.addFileToProject("node_modules/widgets/first.d.ts", "export declare const ActualWidget: unknown;")
+        val second = myFixture.addFileToProject("node_modules/widgets/second.d.ts", "// moved\nexport declare const ActualWidget: unknown;")
+        val caller = navigationCaller()
+        publishNavigation(caller, first)
+        assertEquals(first.virtualFile, gotoTargets().single().containingFile.virtualFile)
+        publishNavigation(caller, second)
+        assertEquals(second.virtualFile, gotoTargets().single().containingFile.virtualFile)
+        assertEquals(second.text.indexOf("ActualWidget"), gotoTargets().single().textOffset)
+    }
+
+    fun testMissingDeclarationsFallBackToJsModuleThenConfiguration() {
+        val declaration = myFixture.addFileToProject("node_modules/widgets/index.d.ts", "export declare const ActualWidget: unknown;")
+        val javascript = myFixture.addFileToProject("node_modules/widgets/index.js", "exports.ActualWidget = { render() {} };")
+        val caller = navigationCaller()
+        val configuration = publishNavigation(caller, declaration, javascript)
+        WriteCommandAction.runWriteCommandAction(project) { declaration.delete() }
+        assertEquals(javascript.virtualFile, gotoTargets().single().containingFile.virtualFile)
+        WriteCommandAction.runWriteCommandAction(project) { javascript.delete() }
+        assertEquals(configuration.virtualFile, gotoTargets().single().containingFile.virtualFile)
+    }
+
+    fun testStaleCoordinatesFallBackToTheFileInsteadOfAnotherToken() {
+        val declaration = myFixture.addFileToProject("node_modules/widgets/index.d.ts", "export declare const ActualWidget: unknown;")
+        val caller = navigationCaller()
+        publishNavigation(caller, declaration, columnOverride = 1)
+        val target = gotoTargets().single()
+        assertEquals(declaration.virtualFile, target.containingFile.virtualFile)
+        assertEquals(0, target.textOffset)
+    }
+
+    fun testNativeComponentNavigationStillTargetsItsKotlinClass() {
+        val source = component()
+        myFixture.configureByText("Usage.kt", """
+            package usage
+            import sample.Counter
+            import kvue.vdom.RenderGroup
+            fun RenderGroup.page() { Coun<caret>ter(step = 2) }
+        """.trimIndent())
+        refresh()
+        val target = gotoTargets().single()
+        assertEquals(source.virtualFile, target.containingFile.virtualFile)
+        val component = source.declarations.filterIsInstance<KtClass>().single()
+        assertEquals(component.textOffset, target.textOffset)
+        myFixture.editor.caretModel.moveToOffset(myFixture.file.text.indexOf("step =") + 1)
+        assertEquals(component.declarations.filterIsInstance<KtProperty>().single { it.name == "step" }.textOffset,
+            gotoTargets().single().textOffset)
+    }
+
+    fun testOrdinaryKotlinNavigationIsNotRedirected() {
+        val file = myFixture.configureByText("Ordinary.kt", "fun ordinary() = 1\nfun caller() = ord<caret>inary()")
+        val target = gotoTargets().single()
+        assertEquals(file.virtualFile, target.containingFile.virtualFile)
+        assertTrue(target is KtNamedFunction)
+        assertEquals("ordinary", (target as KtNamedFunction).name)
+    }
+
+    private fun navigationCaller(): KtFile = myFixture.configureByText("Usage.kt", """
+        package usage
+        import widgets.Widget
+        import kvue.vdom.RenderGroup
+        fun RenderGroup.page() { Wid<caret>get(title = "hello") }
+    """.trimIndent()) as KtFile
+
+    private fun publishNavigation(caller: KtFile, source: PsiFile, javascript: PsiFile? = null, columnOverride: Int? = null): PsiFile {
+        val configuration = myFixture.tempDirFixture.getFile("kvue.components.json")?.let {
+            com.intellij.psi.PsiManager.getInstance(project).findFile(it)
+        } ?: myFixture.addFileToProject("kvue.components.json", "{}")
+        val report = JsonParser.parseString("""
+            {"schemaVersion":2,"components":[{"package":"widgets","name":"Widget","module":"widgets","exportName":"ActualWidget",
+              "props":[{"name":"title","memberName":"title","kotlin":"String","required":true,"variadic":false}],
+              "events":[]}],"schemas":[{"package":"widgets","name":"Widget","text":"package widgets\ninterface Widget"}]}
+        """.trimIndent()).asJsonObject
+        val component = report.getAsJsonArray("components")[0].asJsonObject
+        component.addProperty("source", source.virtualFile.path)
+        javascript?.let { component.addProperty("moduleSource", it.virtualFile.path) }
+        val offset = source.text.indexOf("ActualWidget")
+        component.add("navigation", JsonObject().apply {
+            addProperty("file", source.virtualFile.path)
+            addProperty("line", source.text.take(offset).count { it == '\n' } + 1)
+            addProperty("column", columnOverride ?: (offset - source.text.lastIndexOf('\n', offset - 1)))
+            addProperty("length", "ActualWidget".length)
+            addProperty("text", "ActualWidget")
+        })
+        val root = Path.of(caller.virtualFile.parent.path)
+        val external = ExternalSnapshot(listOf(ExternalLibrary(Path.of(configuration.virtualFile.path), listOf(root), ExternalComponents.parse(report))))
+        val service = project.service<KvueProjectService>()
+        val scan = allowAnalysisOnEdt { ReadAction.compute<KvueProjectService.Scan, RuntimeException> { service.scan(external) } }
+        assertEmpty(scan.diagnostics)
+        WriteAction.run<RuntimeException> { service.publish(scan) }
+        return configuration
+    }
+
+    private fun gotoTargets(): Array<PsiElement> = allowAnalysisOnEdt {
+        ReadAction.compute<Array<PsiElement>, RuntimeException> {
+            GotoDeclarationAction.findAllTargetElements(project, myFixture.editor, myFixture.caretOffset)
+        }
     }
 
     fun testKotlinJsModuleResolvesVirtualDeclarations() {

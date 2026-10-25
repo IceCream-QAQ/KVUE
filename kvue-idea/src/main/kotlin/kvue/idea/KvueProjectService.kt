@@ -150,6 +150,7 @@ class KvueProjectService(private val project: Project, private val scope: Corout
             }
         }
         val externalFiles = mutableMapOf<KaModule, MutableList<org.jetbrains.kotlin.analysis.api.resolve.extensions.KaResolveExtensionFile>>()
+        val externalOrigins = mutableMapOf<KaModule, MutableList<String>>()
         for (library in imports.libraries) {
             val owners = moduleFiles.filterValues { anchors -> anchors.any { file ->
                 library.sourceRoots.any { root -> Path.of(file.virtualFile.path).startsWith(root) }
@@ -166,6 +167,8 @@ class KvueProjectService(private val project: Project, private val scope: Corout
                 }
                 ownedNames.getOrPut(owner) { mutableSetOf() }.add(component.model.className.canonicalName)
                 externalFiles.getOrPut(owner) { mutableListOf() }.addAll(component.virtualFiles(project, library.configuration))
+                externalOrigins.getOrPut(owner) { mutableListOf() }
+                    .add("${component.model.className.canonicalName}|${component.navigation}|${component.source}|${component.moduleSource}|${library.configuration}")
             }
         }
         ownedNames.keys.retainAll(moduleFiles.keys)
@@ -181,7 +184,15 @@ class KvueProjectService(private val project: Project, private val scope: Corout
                     originalOwner(file).let { it.first != null && it in ownerKeys } &&
                     (file.packageFqName.asString() + "." + if (isGeneratedImplementation(file)) file.name.removeSuffix("KVueGenerated.kt") else file.name.removeSuffix(".kt")) in names
             }.map { it.virtualFile.path }.toSet()
-            val fingerprint = declarations.joinToString("\n") { it.buildFileText() } + shadowed.sorted().joinToString("\n")
+            fun origin(pointer: SmartPsiElementPointer<out PsiElement>): String = pointer.element?.let { element ->
+                val file = element.containingFile?.virtualFile
+                "${file?.url}:${System.identityHashCode(file)}:${element.textOffset}"
+            }.orEmpty()
+            val nativeOrigins = components[module].orEmpty().sortedBy { it.model.className.canonicalName }.joinToString("\n") { component ->
+                origin(component.origin) + component.members.toSortedMap().entries.joinToString { (name, pointer) -> "$name:${origin(pointer)}" }
+            }
+            val fingerprint = declarations.joinToString("\n") { it.buildFileText() } + shadowed.sorted().joinToString("\n") + nativeOrigins +
+                externalOrigins[module].orEmpty().sorted().joinToString("\n")
             ModuleSnapshot(declarations, shadowed, names.toSet(), fingerprint)
         }
         return Scan(modules, problems, revision)
@@ -201,6 +212,9 @@ class KvueProjectService(private val project: Project, private val scope: Corout
         changed.forEach { module ->
             publisher.onModification(KotlinModuleOutOfBlockModificationEvent(module))
         }
+        // A navigation-only refresh changes no physical Kotlin PSI. Its reference cache can otherwise
+        // keep a resolved declaration tied to the previous resolve-extension file/provider.
+        if (changed.isNotEmpty()) PsiManager.getInstance(project).dropResolveCaches()
         if (changed.isNotEmpty() && !ApplicationManager.getApplication().isUnitTestMode) DaemonCodeAnalyzer.getInstance(project).restart()
     }
 

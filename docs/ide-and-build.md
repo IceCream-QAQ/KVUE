@@ -240,6 +240,23 @@ Gradle 集成为可选依赖：通过 `GradleExecutionHelperExtension.configureS
 Kotlin 与外部库各有独立刷新队列，Node 缺失或外部分析失败不会阻塞原生组件声明。
 `Tools → KVUE` 提供手动刷新和查看诊断。未知或尚未解析出的类型会记录诊断，而不是生成猜测的精确签名。
 
+### Ctrl+点击与转到声明
+
+KVUE 的虚拟组件函数、生成的定义对象和导入接口可以直接导航到原始声明：
+
+- Kotlin class 组件回到自己的 class；生成参数仍可导航到对应的 `@Prop` / `@Emit` 属性。
+- 第三方组件默认定位到 `.d.ts` 中实际的组件声明；TypeScript checker 会解析重命名、默认导出和转导出链。
+- 没有声明或显式选用 JS 源码分析时，定位到 JS/MJS/CJS 中的定义或导出语句。
+- 来源失效时依次尝试仍存在的来源文件、JS 模块入口和导入配置。坐标与当前文件内容不一致时只打开文件，不跳到错误的 token。
+
+分析报告以 UTF-16 行列和声明文本记录位置，避免 Windows CRLF 与 IDE 文档 LF 的偏移差异。
+IDE 使用智能范围指针跟踪未保存编辑造成的位置移动；来源文件或位置变化也参与快照与引用缓存失效。
+`GotoDeclarationHandler` 只接管已确认由 KVUE 提供的 Resolve Extension 文件，普通 Kotlin 导航保持原路径。
+导航动作复用缓存的导入结果；Resolve Extension 的来源回调只读取智能指针，不启动 Node 或进行嵌套 Kotlin 分析。
+此功能无需项目生成 KSP 文件，也不要求安装 JavaScript/TypeScript PSI 插件；有文件内容即可定位。
+
+更新插件后重新启动开发 IDE。若库声明刚发生变化，可执行 **Tools → KVUE → Refresh Component Declarations**。
+
 只读分析入口也可单独调用：
 
 ```powershell
@@ -257,7 +274,7 @@ node tools/js-components/generate.cjs --analyze --config tools/js-components/fix
 - `examples/element-plus-demo` 目录 `gradlew jsBrowserDistribution`：使用本地发布的依赖构建独立演示应用，验证主源码 KSP、全部 Element Plus 组件导入和生产打包。首次运行先按示例 README 准备本地仓库。
 - `gradlew :kvue-compiler-plugin:test`：编译并运行使用绑定参数的 Kotlin 程序，覆盖成员 / 局部 / 委托属性、参数求值顺序、单次接收对象求值、必需属性、错误目标、参数冲突、类型不兼容和跨模块 / 友元 setter 权限。
 - `gradlew -p kvue-gradle-plugin test validatePlugins`：测试将插件发布到 `build/test-repository`，由独立消费项目加载，检查依赖、源码目录、任务顺序和缺失插件提示；还验证配置优先级、同一 daemon 的环境变化、配置缓存复用、两种 KSP 源目录 API、其他生成器及处理器的接线、切换模式和删除产物。
-- `gradlew -p kvue-idea ... test buildPlugin verifyPluginStructure`：真实 IntelliJ/K2 测试框架检查跨包解析、补全导入、参数更新、删除组件、旧产物遮蔽、继承/别名、Kotlin/JS 模块、外部模型的虚拟声明与绑定错误标红；通过 SDK 的 `GradleExecutionHelper.prepareForExecution`，验证模型导入 / 执行任务均注入默认值且保留已有环境。
+- `gradlew -p kvue-idea ... test buildPlugin verifyPluginStructure`：真实 IntelliJ/K2 测试框架检查跨包解析、补全导入、参数更新、删除组件、旧产物遮蔽、继承/别名、Kotlin/JS 模块、外部模型的虚拟声明与绑定错误标红；验证 Ctrl+点击目标、实际编辑器光标位置、未保存编辑、来源迁移和删除后的回退。通过 SDK 的 `GradleExecutionHelper.prepareForExecution` 验证模型导入 / 执行任务的环境默认值。
 
 本地 IU 262.10968.63 的测试 classpath 中，一个混淆过的 Ultimate 启动扩展被解析成接口；测试启动时只隔离这个无关扩展。
 Kotlin 解析器、Resolve Extension、补全和高亮均使用真实 SDK；插件发行包不包含此测试适配。

@@ -180,6 +180,10 @@ implementation(npm("element-plus", "2.14.7"))
 - `build/generated/ksp/js/jsMain/kotlin`：KSP 生成的导入声明、定义和 DSL。
 - `build/generated/kvue/js-components/report.json`：组件、参数、类型转换说明、跳过导出，以及 `declarations` / `sources` 文件清单。组件的 `analysis` / `source` 字段记录分析来源；源码结构诊断包含文件和行号。
 
+每个组件还包含可选的 `navigation`（实际导出声明的文件、UTF-16 行列、长度和文本）及 `moduleSource`（可静态解析到的 JS 模块入口）。
+IDE 用这些信息把虚拟 Kotlin 调用直接导航到 `.d.ts` 或 JS；跟随转导出使用 TypeScript 符号，不执行组件库代码。
+元数据是 schemaVersion 2 的兼容扩展，旧报告缺少坐标时仍可打开来源文件。
+
 修改组件选择后，导入器会删除自己先前生成、当前已不需要的接口，防止遗留旧绑定。
 Gradle 会跟踪生成器、npm 中的源码/声明、显式入口及报告中发现的本地导入源码，源码修改会触发重新生成。
 

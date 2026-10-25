@@ -14,6 +14,57 @@ let report;
 before(() => { report = analyze(configuration, nodeModules, configDirectory); });
 const component = name => report.components.find(value => value.name === name);
 
+function assertNavigation(component, filename, text) {
+  const target = component.navigation;
+  assert.ok(target, component.name);
+  assert.ok(path.isAbsolute(target.file));
+  assert.ok(target.file.endsWith('/' + filename), target.file);
+  const line = fs.readFileSync(target.file, 'utf8').split(/\r\n|\n|\r/)[target.line - 1];
+  assert.equal(line.slice(target.column - 1, target.column - 1 + target.length), text);
+  assert.equal(target.text, text);
+}
+
+test('component navigation resolves declaration aliases and default re-exports', () => {
+  const library = { module: './navigation-entry.mjs', declarations: 'navigation-entry.d.ts',
+    package: 'fixtures.navigation', exports: { RenamedWidget: 'KotlinWidget', DefaultWidget: 'KotlinDefault' } };
+  const result = analyze({ libraries: [library] }, nodeModules, configDirectory);
+  assert.deepEqual(result.components.map(value => value.name), ['KotlinWidget', 'KotlinDefault']);
+  for (const value of result.components) {
+    assertNavigation(value, 'navigation-component.d.ts', 'ActualWidget');
+    assert.equal(value.moduleSource, path.join(configDirectory, 'navigation-entry.mjs').replaceAll('\\', '/'));
+  }
+});
+
+test('component navigation falls back to JS definitions and CommonJS exports', () => {
+  const library = { module: './navigation-entry.mjs', source: 'navigation-entry.mjs',
+    package: 'fixtures.navigation', exports: '*' };
+  const result = analyze({ libraries: [library] }, nodeModules, configDirectory);
+  for (const value of result.components) assertNavigation(value, 'navigation-component.mjs', 'ActualWidget');
+  assertNavigation(component('SourceCommonJs'), 'source-commonjs.cjs', 'module');
+  assertNavigation(component('ForeignCommonJs'), 'foreign-commonjs.d.ts', 'component');
+});
+
+test('real Element Plus navigation points to the exported component declaration', () => {
+  assertNavigation(component('ElButton'), 'index.d.ts', 'ElButton');
+  assert.ok(component('ElButton').navigation.file.includes('/components/button/'));
+  assertNavigation(component('ElInput'), 'index.d.ts', 'ElInput');
+  assert.ok(component('ElInput').moduleSource.endsWith('/element-plus/lib/index.js'));
+});
+
+test('navigation coordinates use UTF-16 columns and survive CRLF line endings', () => {
+  const root = path.join(__dirname, 'build/navigation-tests');
+  fs.mkdirSync(root, { recursive: true });
+  const directory = fs.mkdtempSync(path.join(root, 'crlf-'));
+  const file = path.join(directory, 'widget.d.ts');
+  const line = '/*😀*/ export declare const ActualWidget: { render(): unknown };';
+  fs.writeFileSync(file, '// header\r\n' + line + '\r\n');
+  const value = analyze({ libraries: [{ module: 'navigation-test', declarations: file,
+    package: 'fixtures.navigation', exports: ['ActualWidget'] }] }, nodeModules, directory).components[0];
+  assertNavigation(value, 'widget.d.ts', 'ActualWidget');
+  assert.equal(value.navigation.line, 2);
+  assert.equal(value.navigation.column, line.indexOf('ActualWidget') + 1);
+});
+
 test('discovers named, default, CommonJS, functional and plain options components', () => {
   assert.deepEqual(report.components.filter(value => value.analysis === 'declaration').map(value => value.name).sort(), ['ElButton', 'ElInput', 'ForeignCommonJs', 'ForeignCounter', 'ForeignDefault', 'ForeignFunctional', 'ForeignOptions']);
   assert.equal(component('ForeignFunctional').kind, 'functional');
