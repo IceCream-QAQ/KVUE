@@ -1,0 +1,140 @@
+name: 构建与发布
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  # Avoid interrupting a multi-module publication halfway through.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  check:
+    name: 检查与 Maven 打包
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+      - name: 配置浏览器
+        run: |
+          chrome_path="$(command -v google-chrome)"
+          echo "CHROME_BIN=$chrome_path" >> "$GITHUB_ENV"
+      - name: 运行主工程与 Gradle 插件检查
+        run: >-
+          ./gradlew --no-daemon --console=plain --stacktrace
+          -Pkvue.exposeGeneratedSources=false
+          check :kvue-gradle-plugin:check
+      - name: 验证所有 Maven 发布产物
+        run: >-
+          ./gradlew --no-daemon --console=plain --stacktrace
+          --init-script tools/publish-demo.gradle
+          -Pkvue.exposeGeneratedSources=true
+          publishAllPublicationsToKvueDemoRepository
+          :kvue-gradle-plugin:publishAllPublicationsToKvueDemoRepository
+      - name: 保存测试报告
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: core-test-reports
+          path: |
+            **/build/reports/tests/
+            **/build/test-results/**/*.xml
+          retention-days: 14
+
+  idea:
+    name: IDEA 插件
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: |
+            21
+            25
+          cache: gradle
+      - name: 配置两套 JDK 工具链
+        run: |
+          mkdir -p "$HOME/.gradle"
+          echo 'org.gradle.java.installations.fromEnv=JAVA_HOME_21_X64,JAVA_HOME_25_X64' >> "$HOME/.gradle/gradle.properties"
+      - name: 测试并构建插件
+        run: >-
+          xvfb-run --auto-servernum ./gradlew -p kvue-idea
+          --no-daemon --console=plain --stacktrace
+          test buildPlugin verifyPluginStructure
+      - name: 保存 IDEA 插件安装包
+        id: plugin
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: kvue-idea-${{ github.sha }}
+          path: kvue-idea/build/distributions/*.zip
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 30
+      - name: 写入插件下载入口
+        env:
+          ARTIFACT_URL: ${{ steps.plugin.outputs.artifact-url }}
+        run: |
+          printf '### IDEA 插件\n\n[下载本次构建的插件安装包](%s)\n\n解压下载的构建产物后，在 IDEA 的插件设置中从磁盘安装其中的插件 ZIP。\n' "$ARTIFACT_URL" >> "$GITHUB_STEP_SUMMARY"
+      - name: 保存 IDEA 测试报告
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: idea-test-reports
+          path: |
+            kvue-idea/build/reports/tests/
+            kvue-idea/build/test-results/**/*.xml
+          retention-days: 14
+
+  publish:
+    name: 发布 GitHub Packages
+    needs: [check, idea]
+    if: >-
+      github.ref == 'refs/heads/master' &&
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+      - name: 发布全部 Maven 包及 Gradle 插件标记
+        env:
+          GITHUB_ACTOR: ${{ github.actor }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: >-
+          ./gradlew --no-daemon --console=plain --stacktrace
+          --init-script tools/publish-github.gradle
+          -Pkvue.exposeGeneratedSources=true
+          publishAllPublicationsToGitHubPackagesRepository
+          :kvue-gradle-plugin:publishAllPublicationsToGitHubPackagesRepository

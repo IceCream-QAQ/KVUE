@@ -1,0 +1,15 @@
+// Only opt-in publication commands load this script; normal builds need no GitHub credentials.
+allprojects { project ->
+    project.pluginManager.withPlugin('maven-publish') {
+        def repository = project.providers.environmentVariable('GITHUB_REPOSITORY')
+            .orElse('IceCream-QAQ/KVUE').get().toLowerCase(Locale.ROOT)
+        project.extensions.getByName('publishing').repositories.maven {
+            name = 'GitHubPackages'
+            url = "https://maven.pkg.github.com/${repository}"
+            credentials {
+                username = project.providers.environmentVariable('GITHUB_ACTOR').orNull
+                password = project.providers.environmentVariable('GITHUB_TOKEN').orNull
+            }
+        }
+    }
+}
