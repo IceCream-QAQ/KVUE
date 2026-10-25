@@ -1,0 +1,31 @@
+package {{PACKAGE}}
+
+import kvue.Component
+import kvue.annotation.VueComponent
+import kvue.vdom.RenderFun
+import kvui.*
+
+@VueComponent
+class App : Component() {
+    private var name by ref("Kotlin")
+    private var count by ref(0)
+
+    override val body = RenderFun {
+        main(className = "page") {
+            div(className = "card") {
+                p(className = "eyebrow") { text("KVUE / KVUI") }
+                h1 { text("你好，$name！") }
+                p { text("用 Kotlin 编写组件，让 Vue 更新界面。") }
+                label {
+                    text("你的名字")
+                    input(vModel = name, placeholder = "输入名字")
+                }
+                div(className = "actions") {
+                    button(onClick = { count++ }) { text("点击次数：$count") }
+                    button(onClick = { count = 0 }) { text("重置") }
+                }
+                p(className = "hint") { text("修改 App.kt，开始构建你的界面。") }
+            }
+        }
+    }
+}

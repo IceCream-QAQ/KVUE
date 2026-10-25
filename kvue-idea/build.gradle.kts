@@ -42,6 +42,10 @@ intellijPlatform {
 }
 tasks.processResources {
     from("../tools/js-components") { include("*.cjs"); exclude("*.test.cjs"); into("js-importer") }
+    from("..") {
+        include("gradlew", "gradlew.bat", "gradle/wrapper/gradle-wrapper.jar", "gradle/wrapper/gradle-wrapper.properties")
+        into("project-template")
+    }
 }
 tasks.named<JavaExec>("runIde") {
     // The sandbox keeps its Gradle model between runs, while our locally published SNAPSHOT changes.

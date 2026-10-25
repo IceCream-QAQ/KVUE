@@ -1,0 +1,8 @@
+package {{PACKAGE}}
+
+import kvue.createApp
+
+fun main() {
+{{ELEMENT_PLUS_STYLE}}
+    createApp(AppVue.definition).mount("#app")
+}

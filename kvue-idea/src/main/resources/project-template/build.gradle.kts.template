@@ -1,0 +1,31 @@
+plugins {
+    kotlin("multiplatform") version "2.4.21"
+    id("com.google.devtools.ksp") version "2.3.12"
+    id("org.kvue") version "{{VERSION}}"
+}
+
+group = "{{PACKAGE}}"
+version = "1.0-SNAPSHOT"
+
+kotlin {
+    js {
+        browser {
+            commonWebpackConfig {
+                outputFileName = "app.js"
+                cssSupport { enabled.set(true) }
+            }
+        }
+        binaries.executable()
+    }
+    sourceSets {
+        jsMain.dependencies {
+            implementation("org.kvue:kvui:{{VERSION}}")
+{{ELEMENT_PLUS_DEPENDENCY}}
+        }
+    }
+}
+
+kvue {
+    version.set("{{VERSION}}")
+    processTests.set(false)
+}

@@ -1,0 +1,32 @@
+# KVUE 应用
+
+这是由 KVUE IDEA 插件创建的 Kotlin/JS 应用。
+
+## 准备环境
+
+使用 JDK 21 或更高版本。Gradle Wrapper 已包含在项目中，构建所需的 Node.js 由 Gradle 管理。
+IDEA 中的第三方组件分析还需要可通过 node 命令运行的 Node.js。
+
+{{REPOSITORY_HELP}}
+
+## 运行
+
+等待 IDEA 的 Gradle 同步完成，选择“KVUE 开发服务器”运行配置。
+也可以在项目根目录运行：
+
+    ./gradlew jsBrowserDevelopmentRun --continuous
+
+Windows PowerShell 使用：
+
+    ./gradlew.bat jsBrowserDevelopmentRun --continuous
+
+在浏览器访问 http://127.0.0.1:5173。修改 App.kt 后会重新构建。
+
+## 生产打包
+
+    ./gradlew jsBrowserDistribution
+
+Windows 使用对应的 gradlew.bat。产物位于 build/dist/js/productionExecutable。
+
+安装 KVUE IDEA 插件时，生成声明由编辑器提供，第一次同步后即可开始编写组件。
+未安装插件时，先构建工程生成对应的 Kotlin 声明。

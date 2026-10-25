@@ -33,6 +33,12 @@ KVUE 以 Kotlin 类声明组件，通过 KSP 生成可复用的 Vue 组件定义
 
 以下命令以 PowerShell 为例。其他终端请使用对应的 `./gradlew` 脚本，并调整多行命令的续行方式。
 
+### 通过 IDEA 创建应用
+
+安装 KVUE IDEA 插件后，在 **新建项目 → KVUE** 中填写名称、目录和包名，选择 JDK 21 或更高版本，即可生成应用。提供基础 KVUI 和 Element Plus 两种模板，自动配置 Gradle、示例组件和运行入口。
+
+依赖默认来自 GitHub Packages，需要配置读取凭据；开发时也可选择本地 Maven 仓库。创建后等待同步完成，运行 **KVUE 开发服务器** 并访问 [本地页面](http://127.0.0.1:5173)。详细步骤见 [快速创建工程](docs/new-project.md)。
+
 ### 获取工程并验证
 
 将 `JAVA_HOME` 指向 JDK 21，然后执行：
@@ -292,6 +298,7 @@ ElButton { text("聚焦输入框") }
 
 当前插件面向 IntelliJ IDEA 2026.2.3／262 的 Kotlin K2，提供：
 
+- 新建 KVUE 工程，选择 KVUI 或 Element Plus 模板，配置依赖并自动关联 Gradle。
 - 首次构建前的组件解析、参数提示、自动导入和链式调用补全。
 - 双向绑定目标与回调类型的错误提示。
 - Kotlin 组件公开实例方法的补全和导航。

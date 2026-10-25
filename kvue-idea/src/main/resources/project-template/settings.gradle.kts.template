@@ -1,0 +1,16 @@
+pluginManagement {
+    repositories {
+{{REPOSITORY}}
+        gradlePluginPortal()
+        mavenCentral()
+    }
+}
+
+dependencyResolutionManagement {
+    repositories {
+{{REPOSITORY}}
+        mavenCentral()
+    }
+}
+
+rootProject.name = {{NAME}}

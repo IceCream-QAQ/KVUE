@@ -2,7 +2,7 @@
     <id>org.kvue.idea</id>
     <name>KVUE</name>
     <vendor>KVUE</vendor>
-    <description>Live Kotlin declarations for KVUE components. Builds continue to use KSP.</description>
+    <description>Create KVUE projects and edit live Kotlin declarations for Vue components. Builds continue to use KSP.</description>
     <depends>com.intellij.modules.platform</depends>
     <depends>com.intellij.java</depends>
     <depends>org.jetbrains.kotlin</depends>

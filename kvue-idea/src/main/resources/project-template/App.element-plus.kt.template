@@ -1,0 +1,35 @@
+package {{PACKAGE}}
+
+import {{PACKAGE}}.elementplus.ElButton
+import {{PACKAGE}}.elementplus.ElCard
+import {{PACKAGE}}.elementplus.ElInput
+import kvue.Component
+import kvue.annotation.VueComponent
+import kvue.vdom.RenderFun
+import kvui.*
+
+@VueComponent
+class App : Component() {
+    private var name by ref("Kotlin")
+    private var count by ref(0)
+
+    override val body = RenderFun {
+        main(className = "page") {
+            ElCard {
+                div(className = "card") {
+                    p(className = "eyebrow") { text("KVUE / ELEMENT PLUS") }
+                    h1 { text("你好，$name！") }
+                    p { text("用 Kotlin 直接使用 Element Plus 组件。") }
+                    ElInput(vModel = name, placeholder = "输入名字")
+                    div(className = "actions") {
+                        ElButton(type = "primary") { text("点击次数：$count") }
+                            .onClick { count++ }
+                        ElButton { text("重置") }
+                            .onClick { count = 0 }
+                    }
+                    p(className = "hint") { text("修改 App.kt，开始构建你的界面。") }
+                }
+            }
+        }
+    }
+}
