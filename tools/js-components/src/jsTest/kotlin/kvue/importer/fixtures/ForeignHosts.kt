@@ -7,6 +7,15 @@ import kvue.importer.fixtures.foreign.ForeignFunctional
 import kvue.importer.fixtures.foreign.ForeignOptions
 import kvue.importer.fixtures.elementplus.ElButton
 import kvue.importer.fixtures.elementplus.ElInput
+import kvue.importer.fixtures.elementplus.ElInputVue
+import kvue.importer.fixtures.elementplus.ElInputInstance
+import kvue.importer.fixtures.foreign.ForeignCounterVue
+import kvue.importer.fixtures.foreign.ForeignCounterInstance
+import kvue.importer.fixtures.source.SourceCounterVue
+import kvue.importer.fixtures.source.SourceCounterInstance
+import kvue.importer.fixtures.source.SourceArrayVue
+import kvue.importer.fixtures.source.SourceArrayInstance
+import kvue.ComponentRef
 import kvue.importer.fixtures.source.SourceArray
 import kvue.importer.fixtures.source.SourceCommonJs
 import kvue.importer.fixtures.source.SourceCounter
@@ -18,9 +27,19 @@ import kvue.vdom.RenderFun
 import kvui.button
 import kvui.div
 import kvui.text
+import kvue.vdom.knode.style
+
+internal object ImportedRefProbe {
+    lateinit var input: ComponentRef<ElInputInstance>
+    lateinit var foreign: ComponentRef<ForeignCounterInstance>
+    lateinit var source: ComponentRef<SourceCounterInstance>
+    lateinit var options: ComponentRef<SourceArrayInstance>
+    val events = mutableListOf<String>()
+}
 
 @VueComponent
 internal class ForeignHost : Component() {
+    private val child = ForeignCounterVue.ref().also { ImportedRefProbe.foreign = it }
     private var label by ref("left")
     private var eventLog by ref("")
     private var modelValue by ref(0.0)
@@ -39,6 +58,7 @@ internal class ForeignHost : Component() {
             onBulk = { values -> bulkLog = "${values.size}:${values[1]}:${values[2]}" },
             key = "left",
         ) { div { text("default slot") }.property("data-foreign-slot", "") }
+            .ref(child).onChange { value, _ -> ImportedRefProbe.events += "changed:$value" }
             .slot("header") { div { text("named slot") }.property("data-foreign-header", "") }
         ForeignCounter(label = "right", key = "right")
         ForeignFunctional(label = "functional")
@@ -55,15 +75,17 @@ internal class ForeignHost : Component() {
 
 @VueComponent
 internal class ElementPlusHost : Component() {
+    private val input = ElInputVue.ref().also { ImportedRefProbe.input = it }
     private var text by ref("seed")
     private var clicks by ref(0)
     private var disabled by ref(false)
 
     override val body = RenderFun {
-        ElButton(type = "primary", disabled = disabled, onClick = { clicks++ }) {
+        ElButton(type = "primary", disabled = disabled) {
             div { text("Element Plus button") }
-        }
-        ElInput(vModel = text, placeholder = "Type here")
+        }.style { this["marginRight"] = "8px" }.onClick { clicks++ }
+        ElInput(vModel = text, placeholder = "Type here").ref(input)
+            .onUpdateModelValue { ImportedRefProbe.events += "model:$text" }
         button(onClick = { disabled = true }) { text("disable") }.property("data-action", "disable")
         div { text(text) }.property("data-el-value", "")
         div { text(clicks.toString()) }.property("data-el-count", "")
@@ -72,6 +94,8 @@ internal class ElementPlusHost : Component() {
 
 @VueComponent
 internal class SourceHost : Component() {
+    private val child = SourceCounterVue.ref().also { ImportedRefProbe.source = it }
+    private val array = SourceArrayVue.ref().also { ImportedRefProbe.options = it }
     private var label by ref("source")
     private var changed by ref("")
     private var selected by ref("")
@@ -84,8 +108,8 @@ internal class SourceHost : Component() {
             note = provided(null),
             onChanged = { value, title -> changed = "$title:${value.toInt()}" },
             onUpdateModelValue = { values -> model = "${values.size}:${values[1]}" },
-        )
-        SourceArray(caption = provided("array caption"), onSelected = { values -> selected = "${values[0]}:${values[1]}" })
+        ).ref(child)
+        SourceArray(caption = provided("array caption"), onSelected = { values -> selected = "${values[0]}:${values[1]}" }).ref(array)
         SourceCommonJs(onAccepted = { accepted = it })
         SourceFunctional(label = "JSDoc functional")
         button(onClick = { label = "renamed source" }) { text("rename source") }.property("data-action", "rename-source")

@@ -220,6 +220,28 @@ Element Plus 的 `modelValue` 可以为 `null`，所以使用 `provided(text)` �
 
 ## 类型转换边界
 
+导入器同时生成专属节点、链式事件和公开实例 facade：
+
+```kotlin
+private val input = ElInputVue.ref()
+
+// RenderGroup 内
+ElInput(vModel = text).ref(input).onChange { value, event -> /* ... */ }
+ElButton { text("聚焦") }.onClick { input.value?.focus() }
+```
+
+事件参数以当前库声明为准。实例方法优先读取 TS 公开实例类型；源码入口支持静态 `setupContext.expose({...})`、
+解构/重命名后的 expose、setup 返回的对象和 Options API 的 methods / expose 白名单。
+不执行组件源码；条件式、重复或无法解析的 expose 会记录诊断，不生成猜测的公开成员。
+源码 data/computed 和任意闭包数据流尚未展开，需要声明文件补全。
+
+可选方法参数使用 `OptionalProp<T>`：不传保持 JS 默认值，`provided(null)` 显式传 null，`provided(value)` 传具体值。
+rest、重载或泛型方法会以参数数组提供入口，并记录类型放宽；调用保留 JS 的 `this`。
+从第三方声明导入的属性目前只读，原生 Kotlin `@Expose var` 则生成可写访问器。
+facade 的 `asDynamic()` 用于未建模的公开接口。函数式组件没有组件实例，因此不生成实例 ref。
+
+所有接口由共享生成器提供给 KSP 和 IDEA，链式方法及实例方法在首次构建前也有补全、类型检查和导航。
+
 | TypeScript 声明 | 生成的 Kotlin 形态 |
 | --- | --- |
 | `string`、同类字符串字面量联合 | `String`，原始联合保留在 KDoc/报告中 |

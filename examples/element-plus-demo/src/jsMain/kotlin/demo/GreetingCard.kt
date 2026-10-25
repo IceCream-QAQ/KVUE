@@ -4,6 +4,7 @@ import demo.elementplus.ElButton
 import demo.elementplus.ElCard
 import kvue.Component
 import kvue.annotation.Emit
+import kvue.annotation.Expose
 import kvue.annotation.Prop
 import kvue.annotation.VueComponent
 import kvue.vdom.RenderFun
@@ -19,6 +20,9 @@ class GreetingCard : Component() {
 
     @Emit(name = "update:name")
     private val updateName: (String) -> Unit by event()
+
+    @Expose
+    fun greet(value: String) { updateName(value) }
 
     override val body = RenderFun {
         ElCard(header = "03 / Kotlin class 组件", shadow = "never") {

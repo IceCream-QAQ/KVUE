@@ -56,6 +56,8 @@ internal object KotlinComponentReader {
         }
         val props = mutableListOf<PropModel>()
         val events = mutableListOf<EventModel>()
+        val methods = mutableListOf<ExposedMethodModel>()
+        val exposedProperties = mutableListOf<ExposedPropertyModel>()
         val navigation = mutableMapOf<String, SmartPsiElementPointer<out PsiElement>>()
         val pointerManager = SmartPointerManager.getInstance(declaration.project)
         val signatures = (sequenceOf(symbol.defaultType) + symbol.defaultType.allSupertypes)
@@ -74,6 +76,19 @@ internal object KotlinComponentReader {
             val property = signature.symbol
             val prop = property.annotations.find { it.classId?.asFqNameString() == "kvue.annotation.Prop" }
             val emit = property.annotations.find { it.classId?.asFqNameString() == "kvue.annotation.Emit" }
+            val expose = property.annotations.find { it.classId?.asFqNameString() == "kvue.annotation.Expose" }
+            if (expose != null) {
+                require(prop == null && emit == null) { "@Expose cannot be combined with @Prop or @Emit." }
+                require(property.receiverParameter == null && property.visibility in setOf(KaSymbolVisibility.PUBLIC, KaSymbolVisibility.INTERNAL) &&
+                    (property.isVal || property.setter?.visibility in setOf(KaSymbolVisibility.PUBLIC, KaSymbolVisibility.INTERNAL))) {
+                    "@Expose requires an accessible property and setter."
+                }
+                val name = signature.name.asString()
+                exposedProperties += ExposedPropertyModel(name, expose.string("name").ifEmpty { name },
+                    toPoet(signature.returnType), !property.isVal)
+                property.psi?.let { navigation[name] = pointerManager.createSmartPsiElementPointer(it) }
+                continue
+            }
             if (prop == null && emit == null) continue
             require(prop == null || emit == null) { "A property cannot be both @Prop and @Emit." }
             val source = property.psi as? KtProperty
@@ -99,14 +114,49 @@ internal object KotlinComponentReader {
                 source?.let { navigation[event.parameterName] = pointerManager.createSmartPsiElementPointer(it) }
             }
         }
+        val functionNames = mutableSetOf<String>()
+        for (ownerType in sequenceOf(symbol.defaultType) + symbol.defaultType.allSupertypes) {
+            val classType = ownerType as? KaClassType ?: continue
+            val owner = classType.symbol as? KaNamedClassSymbol ?: continue
+            val substitutor = createSubstitutor(owner.typeParameters.zip(classType.typeArguments)
+                .associate { (parameter, argument) -> parameter to requireNotNull(argument.type) })
+            for (function in owner.declaredMemberScope.callables.filterIsInstance<KaNamedFunctionSymbol>()) {
+                val expose = function.annotations.find { it.classId?.asFqNameString() == "kvue.annotation.Expose" } ?: continue
+                val signature = function.substitute(substitutor)
+                val name = function.name.asString()
+                // An inherited override with the same contract is represented once.
+                val identity = name + signature.valueParameters.joinToString { toPoet(it.returnType).toString() }
+                if (!functionNames.add(identity)) continue
+                val variadic = expose.boolean("variadic")
+                require(function.visibility in setOf(KaSymbolVisibility.PUBLIC, KaSymbolVisibility.INTERNAL) &&
+                    function.typeParameters.isEmpty() && function.receiverParameter == null && !function.isSuspend &&
+                    function.valueParameters.none { it.isVararg || it.hasDefaultValue } && (!variadic || jsImport != null)) {
+                    "@Expose requires an accessible, non-generic, non-suspend method without receiver, varargs or default parameters. Use a dedicated wrapper method."
+                }
+                val parameters = signature.valueParameters.map { parameter ->
+                    val optional = parameter.symbol.annotations.any { it.classId?.asFqNameString() == "kvue.annotation.JsOptional" }
+                    require(!optional || jsImport != null) { "@JsOptional is only supported on imported JS schemas." }
+                    ExposedParameterModel(parameter.name.asString(), toPoet(parameter.returnType), optional)
+                }
+                require(!variadic || (parameters.size == 1 &&
+                    (signature.valueParameters.single().returnType as? KaClassType)?.classId?.asFqNameString() == "kotlin.Array")) {
+                    "Variadic exposed JS methods must take one Array<Any?>."
+                }
+                methods += ExposedMethodModel(name, expose.string("name").ifEmpty { name }, parameters, toPoet(signature.returnType), variadic)
+                function.psi?.let { navigation[name] = pointerManager.createSmartPsiElementPointer(it) }
+            }
+        }
         val names = mutableSetOf("key", "content")
         require(props.all { names.add(it.name) } && events.all { names.add(it.parameterName) }) { "Conflicting DSL parameter name." }
         require(events.map { it.eventName }.distinct().size == events.size) { "Duplicate event name." }
         val classId = checkNotNull(symbol.classId)
         val model = ComponentModel(ClassName(classId.packageFqName.asString(), classId.shortClassName.asString()),
             props.sortedBy { !it.required }, events, jsImport,
-            if (symbol.visibility == KaSymbolVisibility.INTERNAL) KModifier.INTERNAL else KModifier.PUBLIC)
+            if (symbol.visibility == KaSymbolVisibility.INTERNAL) KModifier.INTERNAL else KModifier.PUBLIC,
+            methods, exposedProperties, js?.boolean("hasInstance", true) ?: true)
         require(model.bindingNameConflicts().isEmpty()) { "Conflicting binding parameter names: ${model.bindingNameConflicts()}" }
+        require(model.exposedNameConflicts().isEmpty()) { "Conflicting exposed member names: ${model.exposedNameConflicts()}" }
+        require(model.hasInstance || (methods.isEmpty() && exposedProperties.isEmpty())) { "Functional components have no public component instance." }
         model.bindings.forEach { binding ->
             navigation[binding.prop.name]?.let { pointer -> binding.parameterNames.forEach { navigation[it] = pointer } }
         }
@@ -118,8 +168,8 @@ internal object KotlinComponentReader {
 
     private fun KaAnnotation.string(name: String, default: String = ""): String =
         ((arguments.find { it.name.asString() == name }?.expression as? KaAnnotationValue.ConstantValue)?.value?.value as? String) ?: default
-    private fun KaAnnotation.boolean(name: String): Boolean =
-        ((arguments.find { it.name.asString() == name }?.expression as? KaAnnotationValue.ConstantValue)?.value?.value as? Boolean) ?: false
+    private fun KaAnnotation.boolean(name: String, default: Boolean = false): Boolean =
+        ((arguments.find { it.name.asString() == name }?.expression as? KaAnnotationValue.ConstantValue)?.value?.value as? Boolean) ?: default
 
     private fun KaSession.toClassType(type: KaClassType): TypeName {
         val id = type.classId

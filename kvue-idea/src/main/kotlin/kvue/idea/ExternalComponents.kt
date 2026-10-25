@@ -103,8 +103,24 @@ internal object ExternalComponents {
                 ImportedSourceLocation(target.get("file").asString, target.get("line").asInt, target.get("column").asInt,
                     target.get("length").asInt, target.get("text")?.takeUnless { it.isJsonNull }?.asString)
             }
+            val methods = component.getAsJsonArray("methods")?.map { value ->
+                val method = value.asJsonObject
+                ExposedMethodModel(method.get("memberName").asString, method.get("name").asString,
+                    method.getAsJsonArray("parameters").map { parameter ->
+                        val argument = parameter.asJsonObject
+                        ExposedParameterModel(argument.get("name").asString, importedType(argument.get("kotlin").asString),
+                            argument.get("optional").asBoolean)
+                    }, importedType(method.get("returns").asString), method.get("variadic").asBoolean)
+            }.orEmpty()
+            val exposedProperties = component.getAsJsonArray("exposedProperties")?.map { value ->
+                val property = value.asJsonObject
+                ExposedPropertyModel(property.get("memberName").asString, property.get("name").asString,
+                    importedType(property.get("kotlin").asString), property.get("mutable").asBoolean)
+            }.orEmpty()
             ImportedComponent(ComponentModel(className, props, events,
-                JsImportModel(component.get("module").asString, component.get("exportName").asString)),
+                JsImportModel(component.get("module").asString, component.get("exportName").asString),
+                methods = methods, exposedProperties = exposedProperties,
+                hasInstance = component.get("kind")?.asString != "functional"),
                 schemas.getValue(className.canonicalName), component.get("source")?.takeUnless { it.isJsonNull }?.asString,
                 navigation, component.get("moduleSource")?.takeUnless { it.isJsonNull }?.asString)
         }
@@ -139,6 +155,6 @@ internal fun ImportedComponent.virtualFiles(project: Project, configuration: Pat
     }
     return listOf(
         file(model.className.simpleName + "JsSchema.kt", schema, setOf(Name.identifier(model.className.simpleName)), emptySet()),
-        file(model.fileName + ".kt", dsl, setOf(Name.identifier(model.generatedName.simpleName)), setOf(Name.identifier(model.className.simpleName))),
+        file(model.fileName + ".kt", dsl, model.generatedClassNames.map { Name.identifier(it.simpleName) }.toSet(), setOf(Name.identifier(model.className.simpleName))),
     )
 }

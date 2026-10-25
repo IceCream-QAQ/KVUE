@@ -8,7 +8,7 @@ annotation class VueComponent
 /** Schema for an existing JS export. Usually generated from a library's TypeScript declarations. */
 @Target(AnnotationTarget.CLASS)
 @Retention(AnnotationRetention.BINARY)
-annotation class JsComponent(val module: String, val exportName: String = "default")
+annotation class JsComponent(val module: String, val exportName: String = "default", val hasInstance: Boolean = true)
 
 /** Defaults are evaluated by property(...) in each component instance. */
 @Target(AnnotationTarget.PROPERTY)
@@ -19,6 +19,16 @@ annotation class Prop(val required: Boolean = false, val name: String = "", val 
 @Target(AnnotationTarget.PROPERTY)
 @Retention(AnnotationRetention.BINARY)
 annotation class Emit(val name: String = "", val variadic: Boolean = false)
+
+/** Public instance API. JS schemas may use variadic for signatures widened to an argument array. */
+@Target(AnnotationTarget.FUNCTION, AnnotationTarget.PROPERTY)
+@Retention(AnnotationRetention.BINARY)
+annotation class Expose(val name: String = "", val variadic: Boolean = false)
+
+/** An imported JS argument can be omitted rather than passed as null. */
+@Target(AnnotationTarget.VALUE_PARAMETER)
+@Retention(AnnotationRetention.BINARY)
+annotation class JsOptional
 
 /** Compiler/editor contract on generated DSL parameters. */
 @Target(AnnotationTarget.VALUE_PARAMETER)

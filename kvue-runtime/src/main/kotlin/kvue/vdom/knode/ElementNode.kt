@@ -9,7 +9,7 @@ import vue.Directive
 import vue.createVNode
 import vue.withDirectives
 
-class ElementNode(
+open class ElementNode(
     private val type: dynamic
 ) : KNode {
 
@@ -19,6 +19,27 @@ class ElementNode(
 
     fun property(name: String, value: Any?) {
         properties[name] = value
+    }
+
+    /** Listeners belong to this render's node; repeated registrations preserve their order. */
+    fun listener(name: String, callback: Any) {
+        val previous = properties[name]
+        properties[name] = when (previous) {
+            null -> callback
+            is Array<*> -> previous + callback
+            else -> arrayOf(previous, callback)
+        }
+    }
+
+    fun mergeProperty(name: String, value: Any?) {
+        val merged = vue.mergeProps(properties.toJavaScriptObject(), kvue.`fun`.jso(name to value))
+        properties[name] = merged[name]
+    }
+
+    fun componentRef(target: kvue.ComponentRef<*>) {
+        val previous = properties["ref"]
+        require(previous == null || previous === target.callback) { "A component node can have only one instance ref." }
+        properties["ref"] = target.callback
     }
 
     fun slot(name: String, renderFun: RenderFun) {

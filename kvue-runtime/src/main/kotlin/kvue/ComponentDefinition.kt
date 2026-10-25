@@ -4,6 +4,7 @@ import kvue.`fun`.jso
 import kvue.vdom.buildVNodes
 import vue.VueRenderFun
 import vue.VueSetupFun
+import vue.cloneVNode
 
 data class ComponentProp(val name: String, val required: Boolean = false, val propertyName: String = name)
 
@@ -27,6 +28,7 @@ class ComponentDefinition<T : Component>(
     emits: Array<String> = emptyArray(),
     factory: () -> T,
     bindEvents: (ComponentContext) -> Map<String, Any> = { emptyMap() },
+    expose: ((T) -> dynamic)? = null,
 ) : VueComponentType {
     override val vue: dynamic
 
@@ -41,11 +43,27 @@ class ComponentDefinition<T : Component>(
             val context = ComponentContext(inputProps, setupContext, propNames)
             context.events = bindEvents(context)
             val instance = ComponentConstruction.create(context, factory)
-            val render: VueRenderFun = { instance.body.buildVNodes() }
+            if (expose != null) setupContext.expose(expose(instance))
+            val render: VueRenderFun = {
+                val nodes = instance.body.buildVNodes()
+                // Keep the Fragment stable when a render switches between one and several roots.
+                // Forward attrs explicitly to a sole element/component without changing that structure.
+                if (nodes.size == 1 && (nodes[0].asDynamic().shapeFlag.unsafeCast<Int>() and 7) != 0) {
+                    val attrs = setupContext.attrs
+                    val forwarded = jso()
+                    js("Object.keys")(attrs).unsafeCast<Array<String>>().forEach { key ->
+                        if (!key.startsWith("onUpdate:") || key.removePrefix("onUpdate:") !in propNames.values) {
+                            forwarded[key] = attrs[key]
+                        }
+                    }
+                    nodes[0] = cloneVNode(nodes[0], forwarded)
+                }
+                nodes
+            }
             render
         }
 
-        vue = jso("name" to name, "props" to vueProps, "emits" to emits, "setup" to setup)
+        vue = jso("name" to name, "props" to vueProps, "emits" to emits, "setup" to setup, "inheritAttrs" to false)
     }
 }
 

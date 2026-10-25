@@ -9,6 +9,60 @@
 
 推荐在组件中使用 `kvue` 入口，第三方 JS 互操作按需使用 `vue`。这些都是普通 Kotlin API，IDE 通过库声明提供提示。
 
+## 链式事件、样式与组件实例
+
+组件 DSL 返回生成的专属节点，例如 `CounterNode`。事件方法来自 `@Emit` 或导入的 emits 声明，参数类型与原有函数参数一致：
+
+```kotlin
+import kvue.vdom.knode.css
+import kvue.vdom.knode.style
+
+Counter(onChanged = { value -> println(value) })
+    .css { +"counter"; add("active", enabled) }
+    .style { this["color"] = "red"; this["marginTop"] = "8px" }
+    .onChanged { value -> save(value) }
+```
+
+`css` 配置 class 名称，`style` 合并内联 CSS；它们保留具体节点类型，不生成样式表、选择器或伪类规则。
+参数监听器在前，链式监听器按调用顺序追加。同名事件不会互相覆盖，也不会覆盖 `vModel` 的回写。
+每次 render 都构造新的监听配置，Vue 更新对应 VNode，不会跨 render 累积订阅。
+KVUE 保持稳定的 Fragment 根结构，并将 attrs 合并到唯一的元素/组件根节点；多根组件应显式选择属性落点。
+
+在 Kotlin 组件上用 `@Expose` 声明公开接口：
+
+```kotlin
+@Expose
+fun reset(value: Int): Int {
+    count = value
+    return count
+}
+
+@Expose
+var count by ref(0)
+```
+
+生成器创建 `CounterInstance` facade，并用绑定到当前 Kotlin 实例的函数和属性访问器接入 Vue `expose()`。
+方法可通过 `@Expose(name = "js-name")` 指定 JS 名称。只导出显式标记的成员。
+目前方法要求可访问、非泛型、非 suspend、无扩展接收者、无默认参数和 vararg；复杂入口可提供一个明确签名的包装方法。
+属性可为 val 或 var，var 的 setter 也必须可访问；`@Expose` 不能与 `@Prop` / `@Emit` 混用。
+
+```kotlin
+// 父组件成员初始化时创建一次；不要放在每轮 render 内创建。
+private val child = CounterVue.ref() // ComponentRef<CounterInstance>
+private val instance by child       // 可选的只读委托
+
+override val body = RenderFun {
+    Counter().ref(child).onChanged { /* ... */ }
+    button(onClick = { child.value?.reset(0) }) { text("重置") }
+}
+```
+
+`ComponentRef` 是只读、浅响应式句柄，可以使用 `watch(child)`。
+挂载前/卸载后为 null，普通更新保留 facade 身份，重新挂载创建新 facade。
+同一个 ref 绑定一个组件位置；列表中使用按 key 保存的独立 ref。异步组件的引用需要等实际挂载后才可用。
+它持有 Vue 公开代理，`asDynamic()` 提供显式 JS 互操作入口；不会暴露 Vue 内部 instance。
+函数式 JS 组件没有组件实例，生成器不为它提供 `ref()`。
+
 ## ref 与 computed
 
 ```kotlin

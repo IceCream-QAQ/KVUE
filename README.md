@@ -6,6 +6,7 @@
 根项目只管理插件版本、模块和检查任务汇总；源码及测试随各自模块存放。交互示例位于 `examples/element-plus-demo`。
 可选的 `kvue-idea` 插件提供 K2 编辑期虚拟声明，解决生成前的组件解析与导入。
 Ctrl+点击虚拟组件可回到 Kotlin class，或第三方库的 `.d.ts` / JS 声明。
+组件 DSL 支持带类型的链式事件、样式和实例 ref；Kotlin `@Expose` 与第三方公开方法的用法见 [运行时 API](kvue-runtime/README.md#链式事件样式与组件实例)。
 模块依赖、Gradle 接入、IDE 插件构建和安装见 [IDE 与构建集成](docs/ide-and-build.md)。
 
 ## 构建

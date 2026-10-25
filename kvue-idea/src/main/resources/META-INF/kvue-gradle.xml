@@ -1,4 +1,7 @@
 <idea-plugin>
+    <extensions defaultExtensionNs="com.intellij">
+        <postStartupActivity implementation="kvue.idea.KvueGradleDevelopmentStartupActivity"/>
+    </extensions>
     <extensions defaultExtensionNs="org.jetbrains.plugins.gradle">
         <executionHelperExtension implementation="kvue.idea.KvueGradleEnvironment"/>
     </extensions>

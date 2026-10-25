@@ -14,6 +14,35 @@ let report;
 before(() => { report = analyze(configuration, nodeModules, configDirectory); });
 const component = name => report.components.find(value => value.name === name);
 
+test('extracts exposed instance methods from declarations and source without inventing functional instances', () => {
+  const input = component('ElInput');
+  assert.equal(input.methods.find(method => method.name === 'focus').returns, 'Unit');
+  assert.ok(!input.methods.some(method => method.name === 'onChange' || method.name === 'onUpdate:modelValue'));
+  assert.equal(input.methods.find(method => method.name === 'clear').parameters[0].optional, true);
+  assert.equal(component('ForeignCounter').methods.find(method => method.name === 'reset').parameters[0].kotlin, 'Double?');
+  assert.equal(component('ForeignCounter').methods.find(method => method.name === 'arity').variadic, true);
+  assert.equal(component('SourceCounter').methods.find(method => method.name === 'reset').returns, 'Double');
+  assert.deepEqual(component('SourceArray').methods.map(method => method.name), ['labelWith']);
+  assert.deepEqual(component('SourceFunctional').methods, []);
+  assert.deepEqual(component('ForeignFunctional').methods, []);
+});
+
+test('source exposure respects closed APIs and reports conditional or unknown interfaces', () => {
+  const result = analyze({ libraries: [{ module: './expose-contracts.mjs', source: 'expose-contracts.mjs',
+    package: 'fixtures.exposed', exports: '*' }] }, nodeModules, configDirectory);
+  for (const name of ['Closed', 'Conditional', 'Unknown']) {
+    const entry = result.components.find(component => component.name === name);
+    assert.deepEqual(entry.methods, []);
+    assert.deepEqual(entry.exposedProperties, []);
+  }
+  const echo = result.components.find(component => component.name === 'Returned').methods[0];
+  assert.equal(echo.name, 'echo');
+  assert.equal(echo.parameters[0].kotlin, 'String');
+  assert.equal(echo.returns, 'String');
+  assert.ok(result.diagnostics.some(value => value.reason.includes('Conditional or repeated expose')));
+  assert.ok(result.diagnostics.some(value => value.reason.includes('full expose() object')));
+});
+
 function assertNavigation(component, filename, text) {
   const target = component.navigation;
   assert.ok(target, component.name);

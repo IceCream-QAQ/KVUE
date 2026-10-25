@@ -44,7 +44,7 @@ internal class ComponentVirtualFile(private val component: EditorComponent) : Ka
     private val text by lazy { ComponentCodegen.generate(model, declarationsOnly = true).single().toString() }
     override fun getFileName() = model.fileName + ".kt"
     override fun getFilePackageName() = FqName(model.className.packageName)
-    override fun getTopLevelClassifierNames() = setOf(Name.identifier(model.generatedName.simpleName))
+    override fun getTopLevelClassifierNames() = model.generatedClassNames.map { Name.identifier(it.simpleName) }.toSet()
     override fun getTopLevelCallableNames() = setOf(Name.identifier(model.className.simpleName))
     override fun buildFileText() = text
     override fun createNavigationTargetsProvider() = object : KaResolveExtensionNavigationTargetsProvider() {

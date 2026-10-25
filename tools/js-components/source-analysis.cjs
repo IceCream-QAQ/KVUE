@@ -269,10 +269,65 @@ module.exports = function sourceAnalyzer(ts, checker, warn, sourceFiles) {
     for (const inherited of ['extends', 'mixins']) {
       if (object?.entries.has(inherited)) unknown(`Source ${inherited} is not expanded; inherited props and events require declarations.`, object.entries.get(inherited));
     }
+    const setup = root && ts.isCallExpression(root) && factory && ts.isFunctionLike(resolve(root.arguments[0]))
+      ? resolve(root.arguments[0]) : resolve(object?.entries.get('setup'));
     return { kind, file: declaration.getSourceFile().fileName,
       props: mutated || !root ? [] : prop.present ? prop.value ? props(prop.value) : [] : null,
       events: mutated || !root ? [] : emit.present ? emit.value ? events(emit.value) : [] : null,
+      exposed: mutated || !root || kind === 'functional' ? [] : publicMembers(object, setup),
     };
+  }
+
+  function publicMembers(options, setup) {
+    let members = new Map(objectEntries(options?.entries.get('methods'))?.entries || []);
+    if (setup && ts.isFunctionLike(setup) && setup.body) {
+      const context = setup.parameters[1]?.name;
+      const exposeBinding = context && ts.isObjectBindingPattern(context) && context.elements.find(item =>
+        (item.propertyName?.text || item.name.getText()) === 'expose');
+      const exposeSymbol = exposeBinding && symbolAt(exposeBinding.name);
+      const contextSymbol = context && ts.isIdentifier(context) && symbolAt(context);
+      const calls = [];
+      function visit(node) {
+        if (node !== setup.body && ts.isFunctionLike(node)) return;
+        if (ts.isCallExpression(node)) {
+          const target = unwrap(node.expression);
+          if ((exposeSymbol && symbolAt(target) === exposeSymbol) ||
+              (contextSymbol && ts.isPropertyAccessExpression(target) && target.name.text === 'expose' &&
+                symbolAt(target.expression) === contextSymbol)) calls.push(node);
+        }
+        ts.forEachChild(node, visit);
+      }
+      visit(setup.body);
+      if (calls.length) {
+        const call = calls[0];
+        if (calls.length !== 1 || !ts.isExpressionStatement(call.parent) || call.parent.parent !== setup.body) {
+          unknown('Conditional or repeated expose() calls need an explicit public-instance declaration.', call);
+          return [];
+        }
+        if (!call.arguments.length) return [];
+        const exposed = objectEntries(call.arguments[0]);
+        if (!exposed?.complete) {
+          unknown('Cannot resolve the full expose() object; public members are not inferred.', call);
+          return [];
+        }
+        return [...exposed.entries].map(([name, node]) => ({ name, node }));
+      }
+      const returns = ts.isBlock(setup.body) ? setup.body.statements.filter(ts.isReturnStatement) : [{ expression: setup.body }];
+      if (returns.length === 1) {
+        const returned = objectEntries(returns[0].expression);
+        for (const [name, node] of returned?.entries || []) members.set(name, node);
+      }
+    }
+    if (options?.entries.has('expose')) {
+      const list = arrayItems(options.entries.get('expose'));
+      const names = list?.complete && list.items.map(item => literal(item));
+      if (!names || names.some(name => typeof name !== 'string')) {
+        unknown('Cannot resolve the expose option; public members are not inferred.', options.entries.get('expose'));
+        return [];
+      }
+      members = new Map([...members].filter(([name]) => names.includes(name)));
+    }
+    return [...members].map(([name, node]) => ({ name, node }));
   }
 
   return { inspect, resolve, arrayItems };

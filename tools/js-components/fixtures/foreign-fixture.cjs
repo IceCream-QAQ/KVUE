@@ -11,8 +11,14 @@ exports.ForeignCounter = {
         nullableFormat: { type: Function, default: null },
     },
     emits: ['change', 'update:modelValue', 'bulk'],
-    setup(props, { emit, slots }) {
+    setup(props, { emit, slots, expose }) {
         const count = ref(props.start);
+        expose({
+            count,
+            reset(value = props.start) { count.value = value === null ? 0 : value; return count.value; },
+            describe(suffix) { return this.count + ':' + suffix; },
+            arity(...values) { return values.length; },
+        });
         return () => h('section', { 'data-foreign': props.label }, [
             h('button', { onClick() { count.value++; emit('change', count.value, props.label); emit('update:modelValue', count.value); emit('bulk', count.value, props.label, null); } }, `${props.label}:${count.value}`),
             h('span', { 'data-note': '' }, String(props.note)),

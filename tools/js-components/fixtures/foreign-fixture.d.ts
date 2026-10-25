@@ -7,7 +7,12 @@ export declare const ForeignCounter: DefineComponent<{
     content?: string;
     format?: (...values: unknown[]) => string;
     nullableFormat?: ((value: string) => string | null) | null;
-}, {}, {}, {}, {}, ComponentOptionsMixin, ComponentOptionsMixin, {
+}, {
+    count: number;
+    reset: (value?: number | null) => number;
+    describe: (suffix: string) => string;
+    arity: (...values: unknown[]) => number;
+}, {}, {}, {}, ComponentOptionsMixin, ComponentOptionsMixin, {
     change: (value: number, label: string) => boolean;
     'update:modelValue': (value: number) => boolean;
     bulk: (...values: unknown[]) => boolean;

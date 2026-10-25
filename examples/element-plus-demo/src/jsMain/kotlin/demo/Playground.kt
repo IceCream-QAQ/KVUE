@@ -4,17 +4,22 @@ import demo.elementplus.ElAlert
 import demo.elementplus.ElButton
 import demo.elementplus.ElCard
 import demo.elementplus.ElInput
+import demo.elementplus.ElInputVue
 import demo.elementplus.ElProgress
 import demo.elementplus.ElSwitch
 import demo.elementplus.ElTag
 import kvue.Component
 import kvue.annotation.VueComponent
 import kvue.vdom.RenderFun
+import kvue.vdom.knode.css
+import kvue.vdom.knode.style
 import kvue.watch
 import kvui.*
 
 @VueComponent
 class Playground : Component() {
+    private val nameInput = ElInputVue.ref()
+    private val greeting = GreetingCardVue.ref()
     private var name by ref("Kotlin")
     private var count by ref(0)
     private var enabled by ref(true)
@@ -45,7 +50,13 @@ class Playground : Component() {
                         placeholder = "输入名字，看看下方的问候",
                         clearable = true,
                         size = "large",
-                    )
+                    ).ref(nameInput)
+                    div(className = "button-row") {
+                        ElButton(plain = true) { text("聚焦输入框") }
+                            .onClick { nameInput.value?.focus() }
+                        ElButton(plain = true) { text("调用子组件 greet") }
+                            .onClick { greeting.value?.greet("链式 KVUE") }
+                    }
                     div(className = "switch-row") {
                         span { text("启用计数器") }
                         ElSwitch(
@@ -69,8 +80,10 @@ class Playground : Component() {
                             type = "primary",
                             size = "large",
                             disabled = !enabled || count >= 10,
-                            onClick = { count++ },
                         ) { text("加一") }
+                            .css { +"counter-increment" }
+                            .style { this["fontWeight"] = "600" }
+                            .onClick { count++ }
                         ElButton(size = "large", disabled = count == 0, onClick = { count = 0 }) {
                             text("重置")
                         }
@@ -80,7 +93,8 @@ class Playground : Component() {
             }
 
             // 自己声明的 class，也由插件提供同名 RenderGroup 扩展函数。
-            GreetingCard(bindName = name, onReset = { count = 0 })
+            GreetingCard(bindName = name).ref(greeting)
+                .onReset { count = 0 }
             footer(className = "footer") { text("KVUE · KVUI 原生元素 + Element Plus") }
         }
     }

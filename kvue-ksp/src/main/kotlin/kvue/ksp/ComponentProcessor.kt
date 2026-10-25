@@ -36,6 +36,9 @@ import kvue.codegen.PropModel
 import kvue.codegen.EventModel
 import kvue.codegen.JsImportModel
 import kvue.codegen.validEventName
+import kvue.codegen.ExposedMethodModel
+import kvue.codegen.ExposedParameterModel
+import kvue.codegen.ExposedPropertyModel
 
 class ComponentProcessorProvider : SymbolProcessorProvider {
     override fun create(environment: SymbolProcessorEnvironment): SymbolProcessor =
@@ -60,8 +63,8 @@ private class ComponentProcessor(
             // Kotlin/JS dynamic implementation members unresolved; the Kotlin compiler checks them.
             if (!component.validate(predicate = { _, node ->
                     when (node) {
-                        is KSPropertyDeclaration -> node.annotation(PROP_ANNOTATION) != null || node.annotation(EMIT_ANNOTATION) != null
-                        is KSFunctionDeclaration -> node.simpleName.asString() == "<init>"
+                        is KSPropertyDeclaration -> node.annotation(PROP_ANNOTATION) != null || node.annotation(EMIT_ANNOTATION) != null || node.annotation(EXPOSE_ANNOTATION) != null
+                        is KSFunctionDeclaration -> node.simpleName.asString() == "<init>" || node.annotation(EXPOSE_ANNOTATION) != null
                         is KSClassDeclaration -> node == component
                         else -> true
                     }
@@ -122,9 +125,11 @@ private class ComponentProcessor(
         if (!valid) return null
 
         val className = component.toClassName()
-        val generatedName = ClassName(className.packageName, className.simpleName + "Vue")
-        if (resolver.getClassDeclarationByName(resolver.getKSNameFromString(generatedName.canonicalName)) != null) {
-            reject("Generated name '${generatedName.canonicalName}' is already declared.")
+        for (suffix in listOf("Vue", "Node", "Instance")) {
+            val generatedName = ClassName(className.packageName, className.simpleName + suffix)
+            if (resolver.getClassDeclarationByName(resolver.getKSNameFromString(generatedName.canonicalName)) != null) {
+                reject("Generated name '${generatedName.canonicalName}' is already declared.")
+            }
         }
         val conflictingFunction = resolver.getDeclarationsFromPackage(className.packageName)
             .filterIsInstance<KSFunctionDeclaration>()
@@ -137,6 +142,8 @@ private class ComponentProcessor(
         val memberSources = mutableMapOf<String, KSPropertyDeclaration>()
         val props = mutableListOf<PropModel>()
         val events = mutableListOf<EventModel>()
+        val exposedProperties = mutableListOf<ExposedPropertyModel>()
+        val methods = mutableListOf<ExposedMethodModel>()
         val declarations = (sequenceOf(component.asStarProjectedType()) + component.getAllSuperTypes())
             .map { it.expandAliases(resolver) }
             .flatMap { ownerType ->
@@ -151,6 +158,23 @@ private class ComponentProcessor(
             memberSources[property.simpleName.asString()] = property
             val propAnnotation = property.annotation(PROP_ANNOTATION)
             val emitAnnotation = property.annotation(EMIT_ANNOTATION)
+            val exposeAnnotation = property.annotation(EXPOSE_ANNOTATION)
+            if (exposeAnnotation != null) {
+                if (propAnnotation != null || emitAnnotation != null) {
+                    reject("@Expose cannot be combined with @Prop or @Emit.", property)
+                    continue
+                }
+                if (property.extensionReceiver != null || property.getVisibility() !in setOf(Visibility.PUBLIC, Visibility.INTERNAL) ||
+                    (property.isMutable && property.setter?.modifiers?.any { it == Modifier.PRIVATE || it == Modifier.PROTECTED } == true)) {
+                    reject("@Expose requires an accessible property and setter.", property)
+                    continue
+                }
+                val name = property.simpleName.asString()
+                exposedProperties += ExposedPropertyModel(name,
+                    (exposeAnnotation.argument("name") as? String).orEmpty().ifEmpty { name },
+                    property.asMemberOf(ownerType).toTypeName(), property.isMutable)
+                continue
+            }
             if (propAnnotation == null && emitAnnotation == null) continue
             if (propAnnotation != null && emitAnnotation != null) {
                 reject("A property cannot be both @Prop and @Emit.", property)
@@ -218,6 +242,37 @@ private class ComponentProcessor(
             )
         }
 
+        val exposedFunctions = component.getAllFunctions().filter { it.annotation(EXPOSE_ANNOTATION) != null }.toList()
+        for (function in exposedFunctions) {
+            val annotation = function.annotation(EXPOSE_ANNOTATION)!!
+            val name = function.simpleName.asString()
+            val variadic = annotation.argument("variadic") as? Boolean ?: false
+            if (function.getVisibility() !in setOf(Visibility.PUBLIC, Visibility.INTERNAL) ||
+                function.typeParameters.isNotEmpty() || function.extensionReceiver != null ||
+                Modifier.SUSPEND in function.modifiers || function.parameters.any { it.isVararg || it.hasDefault } ||
+                (variadic && jsImport == null)) {
+                reject("@Expose requires an accessible, non-generic, non-suspend method without receiver, varargs or default parameters. Use a dedicated wrapper method.", function)
+                continue
+            }
+            val signature = function.asMemberOf(component.asStarProjectedType())
+            val parameterTypes = signature.parameterTypes
+            if (signature.isError || signature.returnType == null || parameterTypes.any { it == null }) {
+                reject("Cannot resolve exposed method '$name'.", function)
+                continue
+            }
+            if (variadic && (parameterTypes.size != 1 || parameterTypes.single()?.declaration?.qualifiedName?.asString() != "kotlin.Array")) {
+                reject("Variadic exposed JS methods must take one Array<Any?>.", function)
+                continue
+            }
+            val parameters = function.parameters.mapIndexed { index, parameter ->
+                val optional = parameter.annotation(JS_OPTIONAL_ANNOTATION) != null
+                if (optional && jsImport == null) reject("@JsOptional is only supported on imported JS schemas.", function)
+                ExposedParameterModel(parameter.name?.asString() ?: "arg$index", parameterTypes[index]!!.toTypeName(), optional)
+            }
+            methods += ExposedMethodModel(name, (annotation.argument("name") as? String).orEmpty().ifEmpty { name },
+                parameters, signature.returnType!!.toTypeName(), variadic)
+        }
+
         val parameterNames = mutableSetOf("key", "content")
         props.forEach {
             if (!parameterNames.add(it.name)) reject("DSL parameter '${it.name}' conflicts with another parameter or reserved name.", memberSources[it.name] ?: component)
@@ -229,12 +284,15 @@ private class ComponentProcessor(
         }
         if (!valid) return null
         val model = ComponentModel(className, props.sortedBy { !it.required }, events, jsImport,
-            if (component.getVisibility() == Visibility.INTERNAL) KModifier.INTERNAL else KModifier.PUBLIC)
+            if (component.getVisibility() == Visibility.INTERNAL) KModifier.INTERNAL else KModifier.PUBLIC,
+            methods, exposedProperties, jsAnnotation?.argument("hasInstance") as? Boolean ?: true)
         model.bindingNameConflicts().forEach { reject("Binding parameter '$it' conflicts with an existing DSL parameter.") }
+        model.exposedNameConflicts().forEach { reject("Exposed member '$it' conflicts with another member or a reserved instance API.") }
+        if (!model.hasInstance && (methods.isNotEmpty() || exposedProperties.isNotEmpty())) reject("Functional components have no public component instance.")
         if (!valid) return null
         return ParsedComponent(
             model,
-            (listOf(component.containingFile) + declarations.map { it.first.containingFile }).filterNotNull().distinct().toTypedArray(),
+            (listOf(component.containingFile) + declarations.map { it.first.containingFile } + exposedFunctions.map { it.containingFile }).filterNotNull().distinct().toTypedArray(),
         )
     }
 
@@ -293,3 +351,5 @@ private const val COMPONENT_ANNOTATION = "kvue.annotation.VueComponent"
 private const val JS_COMPONENT_ANNOTATION = "kvue.annotation.JsComponent"
 private const val PROP_ANNOTATION = "kvue.annotation.Prop"
 private const val EMIT_ANNOTATION = "kvue.annotation.Emit"
+private const val EXPOSE_ANNOTATION = "kvue.annotation.Expose"
+private const val JS_OPTIONAL_ANNOTATION = "kvue.annotation.JsOptional"

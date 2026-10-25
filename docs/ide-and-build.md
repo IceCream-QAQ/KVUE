@@ -205,6 +205,11 @@ KVUE Gradle 插件通过处理器参数，把自身生成文件放入该目录�
 产物为 `kvue-idea/build/distributions/kvue-idea-0.1.0-SNAPSHOT.zip`，可通过 IDE 的 **Install Plugin from Disk** 安装。
 先让 IDE 完成正常的 Gradle 同步，以识别运行库和 source set；随后新建、修改组件不需要先运行生成任务。
 
+开发用 `runIde` 会设置 `kvue.development.refreshGradleOnStartup=true`：
+项目受信任且外部项目管理器初始化完成后，重新导入 Gradle 模型，刷新本地 SNAPSHOT 的 KLIB 与源码依赖。
+仅替换插件或在终端构建不会更新沙箱里保存的库路径，因此开发版依赖更新后必须完成这次同步。
+安装 ZIP 到普通 IDEA 不会开启该行为，仍由用户正常的 Gradle 同步管理依赖。
+
 Gradle 集成为可选依赖：通过 `GradleExecutionHelperExtension.configureSettings`，在同步模型和执行任务两条路径注入 `KVUE_EXPOSE_GENERATED_SOURCES_DEFAULT=false`。只修改当前操作的设置副本，交给 IDEA 合并父进程环境；保留已有环境变量、`PATH`、`JAVA_HOME` 和父环境继承选项，不修改系统环境或运行配置。显式配置的同名默认变量也会保留。
 
 插件使用 `KaResolveExtensionProvider` / `KaResolveExtensionFile`，并遵守回调内不能调用 Kotlin 语义解析的要求：
@@ -218,7 +223,7 @@ Gradle 集成为可选依赖：通过 `GradleExecutionHelperExtension.configureS
 参考 [Kotlin Resolve Extension 接口](https://github.com/JetBrains/kotlin/blob/master/analysis/analysis-api/src/org/jetbrains/kotlin/analysis/api/resolve/extensions/KaResolveExtension.kt) 和 [Provider 回调约束](https://github.com/JetBrains/kotlin/blob/master/analysis/analysis-api/src/org/jetbrains/kotlin/analysis/api/resolve/extensions/KaResolveExtensionProvider.kt)。
 
 默认从项目根目录的 `kvue.components.json` 分析第三方组件，将虚拟声明关联到 `src/main/kotlin` 或 `src/jsMain/kotlin` 所属模块。
-已有 npm 依赖是分析外部库的前提；插件不会执行依赖安装、Gradle 或 KSP。
+已有 npm 依赖是分析外部库的前提；组件分析本身不会执行依赖安装、Gradle 或 KSP。
 分析使用系统 PATH 中的 `node` 和本地 `build/js/node_modules` / `node_modules`，项目须处于 IDE 的 trusted 状态。
 
 多 source set 或自定义路径通过根目录的 `kvue.ide.json` 指定；这些是编辑器配置，不是构建输入：
@@ -274,7 +279,7 @@ node tools/js-components/generate.cjs --analyze --config tools/js-components/fix
 - `examples/element-plus-demo` 目录 `gradlew jsBrowserDistribution`：使用本地发布的依赖构建独立演示应用，验证主源码 KSP、全部 Element Plus 组件导入和生产打包。首次运行先按示例 README 准备本地仓库。
 - `gradlew :kvue-compiler-plugin:test`：编译并运行使用绑定参数的 Kotlin 程序，覆盖成员 / 局部 / 委托属性、参数求值顺序、单次接收对象求值、必需属性、错误目标、参数冲突、类型不兼容和跨模块 / 友元 setter 权限。
 - `gradlew -p kvue-gradle-plugin test validatePlugins`：测试将插件发布到 `build/test-repository`，由独立消费项目加载，检查依赖、源码目录、任务顺序和缺失插件提示；还验证配置优先级、同一 daemon 的环境变化、配置缓存复用、两种 KSP 源目录 API、其他生成器及处理器的接线、切换模式和删除产物。
-- `gradlew -p kvue-idea ... test buildPlugin verifyPluginStructure`：真实 IntelliJ/K2 测试框架检查跨包解析、补全导入、参数更新、删除组件、旧产物遮蔽、继承/别名、Kotlin/JS 模块、外部模型的虚拟声明与绑定错误标红；验证 Ctrl+点击目标、实际编辑器光标位置、未保存编辑、来源迁移和删除后的回退。通过 SDK 的 `GradleExecutionHelper.prepareForExecution` 验证模型导入 / 执行任务的环境默认值。
+- `gradlew -p kvue-idea ... test buildPlugin verifyPluginStructure`：真实 IntelliJ/K2 测试框架检查跨包解析、补全导入、参数更新、删除组件、旧产物遮蔽、继承/别名、Kotlin/JS 模块、外部模型的虚拟声明与绑定错误标红；验证 Ctrl+点击目标、实际编辑器光标位置、未保存编辑、来源迁移和删除后的回退。通过 SDK 的 `GradleExecutionHelper.prepareForExecution` 验证模型导入 / 执行任务的环境默认值。额外构建真实运行库 KLIB，以 Kotlin/JS 库根加载，覆盖 `ComponentRef.value` 的继承、委托读取、CSS/样式 lambda 接收者，以及原生/导入组件的混合调用链。
 
 本地 IU 262.10968.63 的测试 classpath 中，一个混淆过的 Ultimate 启动扩展被解析成接口；测试启动时只隔离这个无关扩展。
 Kotlin 解析器、Resolve Extension、补全和高亮均使用真实 SDK；插件发行包不包含此测试适配。

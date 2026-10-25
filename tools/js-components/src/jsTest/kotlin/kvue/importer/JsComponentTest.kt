@@ -3,6 +3,8 @@ package kvue.importer
 import kvue.importer.fixtures.ElementPlusHostVue
 import kvue.importer.fixtures.ForeignHostVue
 import kvue.importer.fixtures.SourceHostVue
+import kvue.importer.fixtures.ImportedRefProbe
+import kvue.provided
 import kvue.importer.fixtures.foreign.ForeignCounterVue
 import kvue.importer.fixtures.foreign.ForeignFunctionalVue
 import kvue.JsComponentDefinition
@@ -12,6 +14,8 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
+import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import vue.createApp
 import vue.nextTick
 
@@ -25,6 +29,30 @@ private external object RawFixture {
 }
 
 class JsComponentTest {
+    @Test
+    fun importedPublicMethodsPreserveThisOptionalNullAndRestArguments(): Promise<Unit> =
+        withJsMounted(ForeignHostVue.definition) { host ->
+            val instance = assertNotNull(ImportedRefProbe.foreign.value)
+            assertEquals(9.0, instance.reset(provided(9.0)))
+            assertEquals("9:suffix", instance.describe("suffix"))
+            assertEquals(9.0, instance.count)
+            assertEquals(2.0, instance.reset())
+            assertEquals(0.0, instance.reset(provided(null)))
+            assertEquals(3.0, instance.arity(arrayOf("a", null, 3)))
+            nextTick().then {
+                assertEquals("left:0", host.querySelector("[data-foreign='left'] button").textContent as String)
+            }
+        }.then { assertNull(ImportedRefProbe.foreign.value) }
+
+    @Test
+    fun sourceExposeAndOptionsMethodsHaveCallablePublicFacades(): Promise<Unit> =
+        withJsMounted(SourceHostVue.definition) { host ->
+            assertEquals(12.0, assertNotNull(ImportedRefProbe.source.value).reset(12.0))
+            assertEquals("array caption!", assertNotNull(ImportedRefProbe.options.value).labelWith("!"))
+            nextTick().then {
+                assertTrue((host.querySelector("[data-source-counter]").textContent as String).contains(":12:"))
+            }
+        }.then { assertNull(ImportedRefProbe.source.value) }
     @Test
     fun importsPreserveTheOriginalComponentIdentityAndKind() {
         assertTrue(ForeignCounterVue.definition.vue === RawFixture.ForeignCounter)
@@ -73,6 +101,11 @@ class JsComponentTest {
         withJsMounted(ElementPlusHostVue.definition) { host ->
             val button = host.querySelector("button.el-button")
             val input = host.querySelector("input.el-input__inner")
+            val instance = assertNotNull(ImportedRefProbe.input.value)
+            instance.focus()
+            assertTrue(document.activeElement === input)
+            instance.blur()
+            assertTrue(document.activeElement !== input)
             assertEquals("seed", input.value as String)
             button.click()
             input.value = "typed through Element Plus"

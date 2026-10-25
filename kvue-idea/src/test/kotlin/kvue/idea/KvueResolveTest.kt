@@ -60,9 +60,11 @@ class KvueResolveTest : LightJavaCodeInsightFixtureTestCase() {
         myFixture.addFileToProject("kvue/Annotations.kt", """
             package kvue.annotation
             annotation class VueComponent
-            annotation class JsComponent(val module: String, val exportName: String = "default")
+            annotation class JsComponent(val module: String, val exportName: String = "default", val hasInstance: Boolean = true)
             annotation class Prop(val required: Boolean = false, val name: String = "", val variadic: Boolean = false)
             annotation class Emit(val name: String = "", val variadic: Boolean = false)
+            annotation class Expose(val name: String = "", val variadic: Boolean = false)
+            annotation class JsOptional
             @Target(AnnotationTarget.VALUE_PARAMETER)
             annotation class VBind(val prop: String, val event: String, val variadic: Boolean = false)
             @Target(AnnotationTarget.VALUE_PARAMETER)
@@ -83,6 +85,8 @@ class KvueResolveTest : LightJavaCodeInsightFixtureTestCase() {
             }
             class ComponentDefinition<T>
             class JsComponentDefinition
+            class ComponentRef<T> { val value: T? = null }
+            open class ComponentInstance(instance: Any?)
             sealed interface OptionalProp<out T> { data object Omitted : OptionalProp<Nothing> }
             fun <T> omittedBinding(): T = error("test")
             fun <T> requiredBindingProp(name: String): T = error("test")
@@ -92,7 +96,11 @@ class KvueResolveTest : LightJavaCodeInsightFixtureTestCase() {
             class RenderGroup
             fun interface RenderFun { fun RenderGroup.render() }
         """.trimIndent())
-        myFixture.addFileToProject("kvue/Element.kt", "package kvue.vdom.knode\nclass ElementNode")
+        myFixture.addFileToProject("kvue/Element.kt", """
+            package kvue.vdom.knode
+            open class ElementNode(definition: Any? = null)
+            fun <N : ElementNode> N.style(block: () -> Unit): N = this
+        """.trimIndent())
         assertTrue(KaResolveExtensionProvider.EP_NAME.getExtensionList(project).any { it is KvueResolveExtensionProvider })
         assertTrue(ExtensionPointName.create<com.intellij.codeInsight.navigation.actions.GotoDeclarationHandler>("com.intellij.gotoDeclarationHandler")
             .extensionList.any { it is KvueGotoDeclarationHandler })
@@ -113,6 +121,63 @@ class KvueResolveTest : LightJavaCodeInsightFixtureTestCase() {
         assertTrue(target.valueParameters.first().typeReference!!.text.contains("Int?"))
         assertEmpty(myFixture.doHighlighting(HighlightSeverity.ERROR))
         assertNull(myFixture.tempDirFixture.getFile("build/generated/ksp"))
+    }
+
+    fun testChainedEventsAndPublicInstanceResolveBeforeKsp() {
+        myFixture.addFileToProject("sample/Controller.kt", """
+            package sample
+            import kvue.Component
+            import kvue.annotation.*
+            @VueComponent class Controller : Component() {
+                @Emit private val changed: (Int) -> Unit by event()
+                @Expose fun reset(value: Int): String = value.toString()
+                @Expose var count: Int = 0
+            }
+        """.trimIndent())
+        myFixture.configureByText("ChainUsage.kt", """
+            package usage
+            import sample.Controller
+            import sample.ControllerVue
+            import kvue.vdom.RenderGroup
+            import kvue.vdom.knode.style
+            val child = ControllerVue.ref()
+            fun RenderGroup.page() {
+                Controller().onChanged { value -> println(value + 1) }
+                    .style {}.ref(child).onChanged {}
+                val text: String? = child.value?.reset(2)
+                child.value?.count = 3
+            }
+        """.trimIndent())
+        refresh()
+        assertEmpty(myFixture.doHighlighting(HighlightSeverity.ERROR))
+        myFixture.editor.caretModel.moveToOffset(myFixture.file.text.indexOf("reset(2)") + 2)
+        val target = gotoTargets().single()
+        assertEquals("reset", (target as KtNamedFunction).name)
+        assertEquals("Controller.kt", target.containingFile.name)
+    }
+
+    fun testWrongEventsAndInstanceRefTypesAreRejected() {
+        component()
+        myFixture.addFileToProject("sample/Other.kt", """
+            package sample
+            import kvue.Component
+            import kvue.annotation.VueComponent
+            @VueComponent class Other : Component()
+        """.trimIndent())
+        myFixture.configureByText("WrongChain.kt", """
+            package usage
+            import sample.Counter
+            import sample.OtherVue
+            import kvue.vdom.RenderGroup
+            fun RenderGroup.page() {
+                Counter().onMissing {}
+                Counter().onChanged { value: String, label: String -> }
+                Counter().ref(OtherVue.ref())
+            }
+        """.trimIndent())
+        refresh()
+        val errors = myFixture.doHighlighting(HighlightSeverity.ERROR)
+        assertTrue(errors.toString(), errors.size >= 3)
     }
 
     fun testBindingAliasesResolveAndWritableTargetsHaveNoErrors() {
@@ -283,14 +348,25 @@ class KvueResolveTest : LightJavaCodeInsightFixtureTestCase() {
         val caller = myFixture.configureByText("Usage.kt", """
             package usage
             import widgets.Widget
+            import widgets.WidgetVue
             import kvue.vdom.RenderGroup
-            fun RenderGroup.page() { Widget(title = "hello", onChanged = { value, label -> println(label + value) }) }
+            val child = WidgetVue.ref()
+            fun RenderGroup.page() {
+                Widget(title = "hello", onChanged = { value, label -> println(label + value) })
+                    .onChanged { value, label -> println(label + value) }.ref(child)
+                child.value?.focus()
+                child.value?.clear()
+                val label: String? = child.value?.label
+            }
         """.trimIndent()) as KtFile
         val report = JsonParser.parseString("""
             {"schemaVersion":2,"components":[{"package":"widgets","name":"Widget","module":"widgets","exportName":"Widget",
               "props":[{"name":"title","memberName":"title","kotlin":"String","required":true,"variadic":false},
                        {"name":"note","memberName":"note","kotlin":"String?","required":false,"variadic":false}],
-              "events":[{"name":"changed","memberName":"emitChanged","arguments":["Double","String"],"variadic":false}]}],"schemas":[]}
+              "events":[{"name":"changed","memberName":"emitChanged","arguments":["Double","String"],"variadic":false}],
+              "methods":[{"name":"focus","memberName":"focus","parameters":[],"returns":"Unit","variadic":false},
+                         {"name":"clear","memberName":"clear","parameters":[{"name":"value","kotlin":"String?","optional":true}],"returns":"Unit","variadic":false}],
+              "exposedProperties":[{"name":"label","memberName":"label","kotlin":"String","mutable":false}]}],"schemas":[]}
         """.trimIndent()).asJsonObject
         val schema = JsonObject().apply {
             addProperty("package", "widgets")
