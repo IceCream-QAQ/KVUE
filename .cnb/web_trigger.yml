@@ -1,0 +1,7 @@
+# yaml-language-server: $schema=https://docs.cnb.cool/web-trigger-schema-zh.json
+branch:
+  - reg: "^master$"
+    buttons:
+      - name: 构建并发布 KVUE
+        description: 检查全部模块，上传 IDEA 插件到 commit 附件，并发布到 IceCream/maven。
+        event: web_trigger_publish

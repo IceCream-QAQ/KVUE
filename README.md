@@ -360,6 +360,8 @@ GitHub Actions 在推送到 `master`、向 `master` 提交拉取请求，以及�
 
 工作流、认证、下载和依赖接入方式见 [持续集成与包发布](docs/ci-and-publishing.md)。
 
+CNB 提供对应的 [.cnb.yml](.cnb.yml) 流程：使用内置 CNB_TOKEN 将 Maven 包发布到 IceCream/maven，将 IDEA 插件上传到当前 commit 的附件。支持 master 推送、拉取请求检查和手动构建，详见 [CNB 构建与发布](docs/cnb-ci.md)。
+
 ## 当前边界
 
 - Kotlin 组件必须是公开或模块内可见、非抽象、无自身泛型参数的顶层类，继承 `Component`，并具有可无参数调用的构造函数。可以继承已经指定具体类型参数的泛型基类。

@@ -1,0 +1,95 @@
+# yaml-language-server: $schema=https://docs.cnb.cool/conf-schema-zh.json
+.pipeline: &pipeline
+  name: KVUE 构建与发布
+  runner:
+    tags: cnb:arch:amd64
+    cpus: 8
+  docker:
+    build:
+      dockerfile: .cnb/Dockerfile
+      by:
+        - .cnb/chrome-headless.sh
+  stages:
+    - name: 准备 Java 工具链
+      script: |
+        set -eu
+        mkdir -p "$GRADLE_USER_HOME"
+        printf '%s\n' 'org.gradle.java.installations.fromEnv=JAVA_HOME_21_X64,JAVA_HOME_25_X64' >> "$GRADLE_USER_HOME/gradle.properties"
+        "$JAVA_HOME_21_X64/bin/java" -version
+        "$JAVA_HOME_25_X64/bin/java" -version
+        "$CHROME_BIN" --version
+
+    - name: 主工程与 Gradle 插件检查
+      timeout: 45m
+      script: >-
+        ./gradlew --no-daemon --console=plain --stacktrace
+        -Pkvue.exposeGeneratedSources=false
+        check :kvue-gradle-plugin:check
+
+    - name: 验证所有 Maven 发布产物
+      timeout: 20m
+      script: >-
+        ./gradlew --no-daemon --console=plain --stacktrace
+        --init-script tools/publish-demo.gradle
+        -Pkvue.exposeGeneratedSources=true
+        publishAllPublicationsToKvueDemoRepository
+        :kvue-gradle-plugin:publishAllPublicationsToKvueDemoRepository
+
+    # The root build and IDEA build share kvue-codegen-core/build; run them in sequence.
+    - name: IDEA 插件测试与打包
+      timeout: 60m
+      env:
+        JAVA_HOME: /opt/java/openjdk
+      script: >-
+        xvfb-run --auto-servernum ./gradlew -p kvue-idea
+        --no-daemon --console=plain --stacktrace
+        test buildPlugin verifyPluginStructure
+
+    - name: 准备 IDEA 插件附件
+      script: |
+        set -eu
+        test -n "${CNB_BUILD_ID:-}"
+        mkdir -p build/cnb-artifacts
+        for artifact in kvue-idea/build/distributions/*.zip; do
+          test -f "$artifact"
+          artifact_name=$(basename "$artifact" .zip)
+          cp "$artifact" "build/cnb-artifacts/${artifact_name}-${CNB_BUILD_ID}.zip"
+        done
+
+    - name: 上传 IDEA 插件到 commit 附件
+      if: &publish-condition >-
+        [ "$CNB_BRANCH" = "master" ] &&
+        { [ "$CNB_EVENT" = "push" ] || [ "$CNB_EVENT" = "web_trigger_publish" ]; }
+      image: cnbcool/attachments:latest
+      settings:
+        type: UPLOAD
+        commit: ${CNB_COMMIT}
+        attachments:
+          - build/cnb-artifacts/*.zip
+        ttl: 30
+
+    - name: 发布到 CNB Maven 制品库
+      if: *publish-condition
+      timeout: 30m
+      script: |
+        set -eu
+        test -n "${CNB_TOKEN:-}"
+        ./gradlew --no-daemon --console=plain --stacktrace \
+          --init-script tools/publish-cnb.gradle \
+          -Pkvue.exposeGeneratedSources=true \
+          publishAllPublicationsToCnbMavenRepository \
+          :kvue-gradle-plugin:publishAllPublicationsToCnbMavenRepository
+
+master:
+  push:
+    - <<: *pipeline
+      lock: &publish-lock
+        key: kvue-master-publish
+        expires: 14400
+        wait: true
+        timeout: 14400
+  pull_request:
+    - <<: *pipeline
+  web_trigger_publish:
+    - <<: *pipeline
+      lock: *publish-lock

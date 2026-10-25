@@ -1,0 +1,13 @@
+// Loaded only by explicit CNB publication commands; normal builds need no token.
+allprojects { project ->
+    project.pluginManager.withPlugin('maven-publish') {
+        project.extensions.getByName('publishing').repositories.maven {
+            name = 'CnbMaven'
+            url = 'https://maven.cnb.cool/IceCream/maven/-/packages/'
+            credentials {
+                username = 'cnb'
+                password = project.providers.environmentVariable('CNB_TOKEN').orNull
+            }
+        }
+    }
+}
