@@ -57,8 +57,9 @@ val runtimeKlib = layout.projectDirectory.file("../kvue-runtime/build/libs/kvue-
 val kvuiKlib = layout.projectDirectory.file("../kvui/build/libs/kvui-js-0.1.0-SNAPSHOT.klib")
 val prepareRuntimeKlib = tasks.register<Exec>("prepareRuntimeKlib") {
     workingDir(layout.projectDirectory.dir(".."))
-    commandLine(if (System.getProperty("os.name").startsWith("Windows")) "gradlew.bat" else "./gradlew",
-        "--no-daemon", "--console=plain", ":kvue-runtime:jsJar", ":kvui:jsJar")
+    // Windows looks up a relative executable from Gradle's own directory, not workingDir; cmd.exe starts in workingDir.
+    val wrapper = if (System.getProperty("os.name").startsWith("Windows")) listOf("cmd", "/c", ".\\gradlew.bat") else listOf("./gradlew")
+    commandLine(wrapper + listOf("--no-daemon", "--console=plain", ":kvue-runtime:jsJar", ":kvui:jsJar"))
 }
 tasks.test {
     dependsOn(prepareRuntimeKlib)
