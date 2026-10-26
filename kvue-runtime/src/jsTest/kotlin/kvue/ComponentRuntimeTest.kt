@@ -9,6 +9,8 @@ import kvue.fixtures.SlotHostVue
 import kvue.fixtures.SlotProbe
 import kvue.fixtures.InlineSlotHostVue
 import kvue.fixtures.InlineSlotProbe
+import kvue.fixtures.RenderProbe
+import kvue.fixtures.RerenderHostVue
 import kvue.`fun`.jso
 import kotlin.js.Promise
 import kotlin.test.Test
@@ -148,6 +150,37 @@ class ComponentRuntimeTest {
             }.then {
                 assertTrue(SlotProbe.calls > 0)
                 assertEquals("lazy", host.querySelector("[data-lazy]").textContent as String)
+            }
+        }
+    }
+
+    @Test
+    fun childrenWithoutContentSkipUnrelatedParentRenders(): Promise<Unit> {
+        RenderProbe.renders.clear()
+        return withMounted(RerenderHostVue.definition) { host ->
+            fun text(selector: String): String = host.querySelector(selector).textContent as String
+            fun click(action: String) { host.querySelector("[data-rerender-action='$action']").click() }
+
+            assertEquals(mapOf("plain" to 1, "content" to 1, "optional" to 1), RenderProbe.renders.toMap())
+            click("tick")
+            nextTick().then {
+                assertEquals("tick:1", text("[data-rerender-tick]"))
+                assertEquals(1, RenderProbe.renders["plain"])
+                assertEquals(1, RenderProbe.renders["optional"])
+                click("toggle")
+                nextTick()
+            }.then {
+                assertEquals("optional:first", text("[data-render-counter='optional']"))
+                click("label")
+                nextTick()
+            }.then {
+                assertEquals("content:second", text("[data-render-counter='content']"))
+                assertEquals("optional:second", text("[data-render-counter='optional']"))
+                click("toggle")
+                nextTick()
+            }.then {
+                assertEquals("", text("[data-render-counter='optional']"))
+                assertEquals(1, RenderProbe.renders["plain"])
             }
         }
     }

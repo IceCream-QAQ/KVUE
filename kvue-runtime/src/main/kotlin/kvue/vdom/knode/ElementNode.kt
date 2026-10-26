@@ -61,6 +61,10 @@ open class ElementNode(
         val vueChildren: dynamic = if (type is String) {
             check(children.keys.all { it == "default" }) { "HTML elements only have a default slot." }
             children["default"]?.flatMap { it.buildVNodes().asList() }?.toTypedArray()
+        } else if (children.isEmpty()) {
+            // Vue force-updates a component whenever render-function children are present, even an
+            // empty slot object. Without slots, unchanged props let a parent render skip the child.
+            null
         } else {
             children.mapValues { (_, blocks) ->
                 { blocks.flatMap { it.buildVNodes().asList() }.toTypedArray() }
