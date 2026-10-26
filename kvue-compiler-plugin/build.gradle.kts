@@ -16,4 +16,8 @@ publishing { publications { create<MavenPublication>("maven") { from(components[
 tasks.test {
     dependsOn(tasks.jar)
     systemProperty("kvue.compiler.jar", tasks.jar.get().archiveFile.get().asFile.absolutePath)
+    systemProperty("kvue.content.runtime", rootProject.file("kvue-runtime/src/main/kotlin/kvue/vdom/ComponentContent.kt").absolutePath)
+    systemProperty("kvue.annotations.runtime", rootProject.file("kvue-runtime/src/main/kotlin/kvue/annotation/Annotations.kt").absolutePath)
+    inputs.file(rootProject.file("kvue-runtime/src/main/kotlin/kvue/vdom/ComponentContent.kt")).withPropertyName("componentContentRuntime")
+    inputs.file(rootProject.file("kvue-runtime/src/main/kotlin/kvue/annotation/Annotations.kt")).withPropertyName("runtimeAnnotations")
 }

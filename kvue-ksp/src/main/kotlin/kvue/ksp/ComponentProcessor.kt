@@ -283,16 +283,21 @@ private class ComponentProcessor(
             if (!eventNames.add(it.eventName)) reject("Event '${it.eventName}' is declared more than once.", memberSources[it.propertyName] ?: component)
         }
         if (!valid) return null
+        val slotOwners = (sequenceOf(component) + component.getAllSuperTypes().map { it.declaration }).toList()
+        val slotNames = slotOwners.flatMap { owner ->
+            (owner.annotation("kvue.annotation.SlotNames")?.argument("value") as? List<*>).orEmpty().filterIsInstance<String>()
+        }.distinct()
+        if (slotNames.any(String::isBlank)) reject("Slot names cannot be empty.")
         val model = ComponentModel(className, props.sortedBy { !it.required }, events, jsImport,
             if (component.getVisibility() == Visibility.INTERNAL) KModifier.INTERNAL else KModifier.PUBLIC,
-            methods, exposedProperties, jsAnnotation?.argument("hasInstance") as? Boolean ?: true)
+            methods, exposedProperties, jsAnnotation?.argument("hasInstance") as? Boolean ?: true, slotNames)
         model.bindingNameConflicts().forEach { reject("Binding parameter '$it' conflicts with an existing DSL parameter.") }
         model.exposedNameConflicts().forEach { reject("Exposed member '$it' conflicts with another member or a reserved instance API.") }
         if (!model.hasInstance && (methods.isNotEmpty() || exposedProperties.isNotEmpty())) reject("Functional components have no public component instance.")
         if (!valid) return null
         return ParsedComponent(
             model,
-            (listOf(component.containingFile) + declarations.map { it.first.containingFile } + exposedFunctions.map { it.containingFile }).filterNotNull().distinct().toTypedArray(),
+            (slotOwners.map { it.containingFile } + declarations.map { it.first.containingFile } + exposedFunctions.map { it.containingFile }).filterNotNull().distinct().toTypedArray(),
         )
     }
 

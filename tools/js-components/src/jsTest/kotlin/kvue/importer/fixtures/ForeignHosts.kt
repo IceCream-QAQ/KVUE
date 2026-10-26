@@ -57,9 +57,11 @@ internal class ForeignHost : Component() {
             onUpdateModelValue = { modelValue = it },
             onBulk = { values -> bulkLog = "${values.size}:${values[1]}:${values[2]}" },
             key = "left",
-        ) { div { text("default slot") }.property("data-foreign-slot", "") }
+        ) {
+            slots.header { div { text("named slot") }.property("data-foreign-header", "") }
+            div { text("default slot") }.property("data-foreign-slot", "")
+        }
             .ref(child).onChange { value, _ -> ImportedRefProbe.events += "changed:$value" }
-            .slot("header") { div { text("named slot") }.property("data-foreign-header", "") }
         ForeignCounter(label = "right", key = "right")
         ForeignFunctional(label = "functional")
         ForeignDefault()

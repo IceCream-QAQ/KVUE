@@ -40,6 +40,8 @@ object ComponentCodegen {
                 *if (declarationsOnly) arrayOf("IDE declaration only") else arrayOf(COMPONENT_REF, model.instanceName))
             .build())
         val nodeType = nodeType(model, declarationsOnly)
+        val contentTypes = contentTypes(model, declarationsOnly)
+        backingObject.addTypes(contentTypes)
         val instanceType = model.takeIf { it.hasInstance }?.let { instanceType(it, declarationsOnly) }
 
         val dsl = FunSpec.builder(model.className.simpleName)
@@ -80,7 +82,8 @@ object ComponentCodegen {
             }
         }
         dsl.addParameter(ParameterSpec.builder("key", ANY.copy(nullable = true)).defaultValue("null").build())
-        dsl.addParameter(ParameterSpec.builder("content", RENDER_FUN.copy(nullable = true)).defaultValue("null").build())
+        dsl.addParameter(ParameterSpec.builder("content", COMPONENT_CONTENT.parameterizedBy(model.contentName).copy(nullable = true))
+            .defaultValue("null").build())
 
         if (declarationsOnly) {
             return listOf(FileSpec.builder(model.className.packageName, model.fileName)
@@ -126,7 +129,7 @@ object ComponentCodegen {
                 .endControlFlow()
         }
         dsl.beginControlFlow("if (key != null)").addStatement("%N.property(%S, key)", node, "key").endControlFlow()
-        dsl.beginControlFlow("if (content != null)").addStatement("%N.slot(%S, content)", node, "default").endControlFlow()
+        dsl.addStatement("%M(%N, content) { %T() }", BIND_COMPONENT_CONTENT, node, model.contentName)
         dsl.addStatement("this.addElement(%N)", node).addStatement("return %N", node)
 
         val file = FileSpec.builder(model.className.packageName, model.className.simpleName + "KVueGenerated")
@@ -144,6 +147,12 @@ object ComponentCodegen {
         val builder = TypeSpec.classBuilder(model.nodeName).addModifiers(model.visibility)
             .primaryConstructor(FunSpec.constructorBuilder().addModifiers(KModifier.INTERNAL).build())
             .superclass(ELEMENT_NODE).addSuperclassConstructorParameter("%T.definition", model.generatedName)
+        builder.addFunction(FunSpec.builder("slot").addModifiers(KModifier.OVERRIDE)
+            .addParameter("name", STRING).addParameter("renderFun", RENDER_FUN).returns(model.nodeName)
+            .apply {
+                if (declarationsOnly) addStatement("error(%S)", "IDE declaration only")
+                else { addStatement("super.slot(name, renderFun)"); addStatement("return this") }
+            }.build())
         for (event in model.events) {
             val function = FunSpec.builder(event.parameterName).returns(model.nodeName)
                 .addParameter("handler", LambdaTypeName.get(parameters = event.arguments.map { ParameterSpec.unnamed(it) }, returnType = UNIT))
@@ -162,6 +171,30 @@ object ComponentCodegen {
             builder.addFunction(function.build())
         }
         return builder.build()
+    }
+
+    private fun contentTypes(model: ComponentModel, declarationsOnly: Boolean): List<TypeSpec> {
+        val scope = TypeSpec.classBuilder(model.contentName).addModifiers(model.visibility)
+            .primaryConstructor(FunSpec.constructorBuilder().addModifiers(KModifier.INTERNAL).build())
+            .superclass(COMPONENT_CONTENT_SCOPE)
+            .addProperty(PropertySpec.builder("slots", model.slotsName)
+                .initializer(if (declarationsOnly) CodeBlock.of("error(%S)", "IDE declaration only")
+                    else CodeBlock.of("%T(this)", model.slotsName)).build())
+            .build()
+        val slots = TypeSpec.classBuilder(model.slotsName).addModifiers(model.visibility)
+            .primaryConstructor(FunSpec.constructorBuilder().addModifiers(KModifier.INTERNAL)
+                .addParameter("scope", COMPONENT_CONTENT_SCOPE).build())
+            .addProperty(PropertySpec.builder("scope", COMPONENT_CONTENT_SCOPE, KModifier.PRIVATE).initializer("scope").build())
+        model.slotMembers.forEach { (wire, member) ->
+            slots.addFunction(FunSpec.builder(member)
+                .addAnnotation(AnnotationSpec.builder(SLOT_DECLARATION).addMember("name = %S", wire).build())
+                .addParameter("content", RENDER_FUN)
+                .apply {
+                    if (declarationsOnly) addStatement("error(%S)", "IDE declaration only")
+                    else addStatement("scope.slot(%S, content)", wire)
+                }.build())
+        }
+        return listOf(scope, slots.build())
     }
 
     private fun instanceType(model: ComponentModel, declarationsOnly: Boolean): TypeSpec {
@@ -306,6 +339,11 @@ private val DEFINE_EXPOSED_PROPERTY = MemberName("kvue", "defineExposedProperty"
 private val OPTIONAL_PROP = ClassName("kvue", "OptionalProp")
 private val RENDER_GROUP = ClassName("kvue.vdom", "RenderGroup")
 private val RENDER_FUN = ClassName("kvue.vdom", "RenderFun")
+private val STRING = ClassName("kotlin", "String")
+private val COMPONENT_CONTENT = ClassName("kvue.vdom", "ComponentContent")
+private val COMPONENT_CONTENT_SCOPE = ClassName("kvue.vdom", "ComponentContentScope")
+private val BIND_COMPONENT_CONTENT = MemberName("kvue.vdom", "bindComponentContent")
+private val SLOT_DECLARATION = ClassName("kvue.annotation", "SlotDeclaration")
 private val ELEMENT_NODE = ClassName("kvue.vdom.knode", "ElementNode")
 private val JS_DEFINITION = ClassName("kvue", "JsComponentDefinition")
 private val JS_MODULE = ClassName("kotlin.js", "JsModule")

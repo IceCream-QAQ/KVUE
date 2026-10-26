@@ -16,7 +16,7 @@ export declare const ForeignCounter: DefineComponent<{
     change: (value: number, label: string) => boolean;
     'update:modelValue': (value: number) => boolean;
     bulk: (...values: unknown[]) => boolean;
-}>;
+}> & { new(): { $slots: { default?: () => VNode[]; header?: () => VNode[]; _?: number; $stable?: boolean } } };
 
 export declare const ForeignFunctional: FunctionalComponent<{ label: string }>;
 

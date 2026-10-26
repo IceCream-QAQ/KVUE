@@ -120,7 +120,8 @@ internal object ExternalComponents {
             ImportedComponent(ComponentModel(className, props, events,
                 JsImportModel(component.get("module").asString, component.get("exportName").asString),
                 methods = methods, exposedProperties = exposedProperties,
-                hasInstance = component.get("kind")?.asString != "functional"),
+                hasInstance = component.get("kind")?.asString != "functional",
+                slotNames = component.getAsJsonArray("slots")?.map { it.asString }.orEmpty()),
                 schemas.getValue(className.canonicalName), component.get("source")?.takeUnless { it.isJsonNull }?.asString,
                 navigation, component.get("moduleSource")?.takeUnless { it.isJsonNull }?.asString)
         }

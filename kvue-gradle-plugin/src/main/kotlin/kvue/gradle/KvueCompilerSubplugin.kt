@@ -7,7 +7,7 @@ import org.jetbrains.kotlin.gradle.plugin.KotlinCompilerPluginSupportPlugin
 import org.jetbrains.kotlin.gradle.plugin.SubpluginArtifact
 import org.jetbrains.kotlin.gradle.plugin.SubpluginOption
 
-/** Adds the call-site binding transform to the real Kotlin compiler, independently of KSP. */
+/** Adds call-site binding and inline slot transforms to the Kotlin compiler, independently of KSP. */
 class KvueCompilerSubplugin : KotlinCompilerPluginSupportPlugin {
     private lateinit var project: Project
     override fun apply(target: Project) { project = target }

@@ -7,6 +7,8 @@ import kvue.fixtures.EmptyComponent
 import kvue.fixtures.FailingComponentVue
 import kvue.fixtures.SlotHostVue
 import kvue.fixtures.SlotProbe
+import kvue.fixtures.InlineSlotHostVue
+import kvue.fixtures.InlineSlotProbe
 import kvue.`fun`.jso
 import kotlin.js.Promise
 import kotlin.test.Test
@@ -20,6 +22,35 @@ import vue.nextTick
 private external val document: dynamic
 
 class ComponentRuntimeTest {
+    @Test
+    fun inlineNamedSlotsStayIndependentFromLazyDefaultContent(): Promise<Unit> {
+        InlineSlotProbe.defaults = 0
+        return withMounted(InlineSlotHostVue.definition) { host ->
+            fun text(selector: String) = host.querySelector(selector).textContent as String
+            assertEquals("head:first", text("[data-inline-header]"))
+            assertEquals("foot:first", text("[data-inline-footer]"))
+            assertEquals("extra", text("[data-inline-extra]"))
+            assertNull(host.querySelector("[data-inline-default]"))
+            assertEquals(0, InlineSlotProbe.defaults)
+            host.querySelector("[data-inline-rename]").click()
+            nextTick().then {
+                assertEquals("head:second", text("[data-inline-header]"))
+                assertEquals("foot:second", text("[data-inline-footer]"))
+                assertEquals(0, InlineSlotProbe.defaults)
+                host.querySelector("[data-inline-show]").click()
+                nextTick()
+            }.then {
+                assertEquals("body:second", text("[data-inline-default]"))
+                assertEquals("HEADER", host.querySelector("[data-inline-html]").tagName as String)
+                assertTrue(InlineSlotProbe.defaults > 0)
+                host.querySelector("[data-inline-ping]").click()
+                nextTick()
+            }.then {
+                assertEquals("1", text("[data-inline-pings]"))
+            }
+        }
+    }
+
     @Test
     fun bindingsSynchronizeRequiredNullableAndNamedPropsInBothDirections(): Promise<Unit> =
         withMounted(BindingHostVue.definition) { host ->

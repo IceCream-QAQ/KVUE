@@ -30,6 +30,16 @@ annotation class Expose(val name: String = "", val variadic: Boolean = false)
 @Retention(AnnotationRetention.BINARY)
 annotation class JsOptional
 
+/** Declares named slots exposed by a component. The explicit slot(name) syntax remains open-ended. */
+@Target(AnnotationTarget.CLASS)
+@Retention(AnnotationRetention.BINARY)
+annotation class SlotNames(vararg val value: String)
+
+/** Compiler/editor contract for inline slot declarations and generated slots.name functions. */
+@Target(AnnotationTarget.FUNCTION)
+@Retention(AnnotationRetention.BINARY)
+annotation class SlotDeclaration(val name: String = "")
+
 /** Compiler/editor contract on generated DSL parameters. */
 @Target(AnnotationTarget.VALUE_PARAMETER)
 @Retention(AnnotationRetention.BINARY)

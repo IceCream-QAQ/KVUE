@@ -23,6 +23,10 @@ import java.io.File
 import java.lang.reflect.Proxy
 
 class KvueGradleEnvironmentTest : BasePlatformTestCase() {
+    // Environment services can retain application-lifetime temp resources. Do not redirect
+    // FileUtil's global temp path to a single test; the platform fixture still cleans its project.
+    override fun shouldContainTempFiles() = false
+
     override fun setUp() {
         TestApplicationManager.getInstance()
         // Same IU 262 flat-test-classpath workaround as KvueResolveTest; never shipped in the plugin.

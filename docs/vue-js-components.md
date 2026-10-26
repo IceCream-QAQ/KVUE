@@ -210,7 +210,7 @@ override val body = RenderFun {
 ```
 
 Element Plus 的 `modelValue` 可以为 `null`，所以使用 `provided(text)` 区分“提供值”和“未提供”。
-默认 slot 使用尾随 lambda；具名 slot 可以在返回的 `ElementNode` 上调用 `slot("header") { ... }`。
+组件尾随块中的普通内容是默认插槽，也可直接声明 `slot("header") { ... }`。导入器读取到 TypeScript 的 `$slots` 名称时，会生成 `slots.header { ... }` 等专属成员；函数组件及声明生成器附加的构造签名也参与名称读取。原有返回节点上的 `.slot("header") { ... }` 继续支持链式使用。声明位置和延迟执行规则见 [插槽说明](slots.md)。
 
 某些组件也有名为 `content` 的 prop。导入器会将该参数改名为 `contentProp`，并保留实际 JS 属性名 `content`，为默认 slot 的 `content` 参数留出位置。
 

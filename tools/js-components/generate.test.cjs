@@ -14,6 +14,21 @@ let report;
 before(() => { report = analyze(configuration, nodeModules, configDirectory); });
 const component = name => report.components.find(value => value.name === name);
 
+test('extracts named slots from intersected component constructors and emits their schema', () => {
+  assert.deepEqual(component('ForeignCounter').slots, ['default', 'header']);
+  const directory = fs.mkdtempSync(path.join(require('node:os').tmpdir(), 'kvue-slot-schema-'));
+  try {
+    generate(configuration, nodeModules, directory, configDirectory);
+    const schema = fs.readFileSync(path.join(directory, 'kotlin/kvue/importer/fixtures/foreign/ForeignCounter.kt'), 'utf8');
+    assert.ok(schema.includes('@SlotNames("default", "header")'));
+    assert.ok(!schema.includes('@SlotNames("$stable"'));
+  } finally {
+    assert.equal(path.dirname(path.resolve(directory)), path.resolve(require('node:os').tmpdir()));
+    assert.ok(path.basename(directory).startsWith('kvue-slot-schema-'));
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
 test('extracts exposed instance methods from declarations and source without inventing functional instances', () => {
   const input = component('ElInput');
   assert.equal(input.methods.find(method => method.name === 'focus').returns, 'Unit');

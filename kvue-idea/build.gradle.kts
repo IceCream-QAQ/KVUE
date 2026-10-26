@@ -1,4 +1,5 @@
 import org.jetbrains.intellij.platform.gradle.TestFrameworkType
+import java.security.MessageDigest
 
 plugins {
     kotlin("jvm") version "2.4.21"
@@ -53,18 +54,33 @@ tasks.named<JavaExec>("runIde") {
 }
 // Exercise the published binary shape rather than test doubles for ref inheritance and DSL receivers.
 val runtimeKlib = layout.projectDirectory.file("../kvue-runtime/build/libs/kvue-runtime-js-0.1.0-SNAPSHOT.klib")
+val kvuiKlib = layout.projectDirectory.file("../kvui/build/libs/kvui-js-0.1.0-SNAPSHOT.klib")
 val prepareRuntimeKlib = tasks.register<Exec>("prepareRuntimeKlib") {
     workingDir(layout.projectDirectory.dir(".."))
     commandLine(if (System.getProperty("os.name").startsWith("Windows")) "gradlew.bat" else "./gradlew",
-        "--no-daemon", "--console=plain", ":kvue-runtime:jsJar")
+        "--no-daemon", "--console=plain", ":kvue-runtime:jsJar", ":kvui:jsJar")
 }
 tasks.test {
     dependsOn(prepareRuntimeKlib)
     inputs.file(runtimeKlib).withPropertyName("kvueRuntimeKlib")
+    inputs.file(kvuiKlib).withPropertyName("kvuiKlib")
     maxHeapSize = "2g"
     systemProperty("idea.kotlin.plugin.use.k2", "true")
     systemProperty("kvue.test.stdlib", analysisStdlib.singleFile.absolutePath)
     systemProperty("kvue.test.js.stdlib", analysisJsStdlib.singleFile.absolutePath)
     systemProperty("kvue.test.js.dom", analysisJsDom.singleFile.absolutePath)
     systemProperty("kvue.test.runtime.klib", runtimeKlib.asFile.absolutePath)
+    systemProperty("kvue.test.kvui.klib", kvuiKlib.asFile.absolutePath)
+    doFirst {
+        // Match Maven's immutable, content-addressed KLIB paths. Reusing a mutable build/libs URL
+        // can leave IDEA's persisted archive stubs describing the previous snapshot.
+        for ((property, source) in listOf("kvue.test.runtime.klib" to runtimeKlib, "kvue.test.kvui.klib" to kvuiKlib)) {
+            val hash = MessageDigest.getInstance("SHA-256").digest(source.asFile.readBytes())
+                .joinToString("") { "%02x".format(it) }
+            val target = layout.buildDirectory.file("test-klibs/$hash/${source.asFile.name}").get().asFile
+            target.parentFile.mkdirs()
+            if (!target.exists()) source.asFile.copyTo(target)
+            systemProperty(property, target.absolutePath)
+        }
+    }
 }

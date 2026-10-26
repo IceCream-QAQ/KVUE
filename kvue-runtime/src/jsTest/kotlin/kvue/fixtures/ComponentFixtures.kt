@@ -16,6 +16,10 @@ private fun RenderGroup.div(content: RenderFun): ElementNode = ElementNode("div"
     slot("default", content)
     addElement(this)
 }
+private fun RenderGroup.header(content: RenderFun): ElementNode = ElementNode("header").apply {
+    slot("default", content)
+    addElement(this)
+}
 private fun RenderGroup.button(onClick: () -> Unit, content: RenderFun): ElementNode = ElementNode("button").apply {
     property("onClick", onClick)
     slot("default", content)
@@ -174,6 +178,51 @@ internal class DefaultsHost : Component() {
 
 internal object SlotProbe {
     var calls = 0
+}
+
+internal object InlineSlotProbe {
+    var defaults = 0
+}
+
+@VueComponent
+@kvue.annotation.SlotNames("header", "footer")
+internal class InlinePanel : Component() {
+    @Prop private val showDefault by property(false)
+    @Emit private val ping: () -> Unit by event()
+    override val body = RenderFun {
+        div {
+            slot("header")
+            if (showDefault) slot()
+            slot("footer")
+            slot("extra")
+            button(onClick = { ping() }) { text("ping") }.property("data-inline-ping", "")
+        }
+    }
+}
+
+@VueComponent
+internal class InlineSlotHost : Component() {
+    private var label by ref("first")
+    private var shown by ref(false)
+    private var pings by ref(0)
+    override val body = RenderFun {
+        InlinePanel(showDefault = shown) {
+            slot("header") {
+                div { text("head:$label") }.property("data-inline-header", "")
+            }
+            InlineSlotProbe.defaults++
+            header { text("HTML header") }.property("data-inline-html", "")
+            div { text("body:$label") }.property("data-inline-default", "")
+            slots.footer {
+                div { text("foot:$label") }.property("data-inline-footer", "")
+            }
+        }.slot("extra") {
+            div { text("extra") }.property("data-inline-extra", "")
+        }.onPing { pings++ }
+        button(onClick = { label = "second" }) { text("rename") }.property("data-inline-rename", "")
+        button(onClick = { shown = true }) { text("show") }.property("data-inline-show", "")
+        div { text(pings.toString()) }.property("data-inline-pings", "")
+    }
 }
 
 @VueComponent

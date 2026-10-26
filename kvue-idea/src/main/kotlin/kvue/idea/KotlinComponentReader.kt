@@ -150,10 +150,15 @@ internal object KotlinComponentReader {
         require(props.all { names.add(it.name) } && events.all { names.add(it.parameterName) }) { "Conflicting DSL parameter name." }
         require(events.map { it.eventName }.distinct().size == events.size) { "Duplicate event name." }
         val classId = checkNotNull(symbol.classId)
+        val slotNames = (sequenceOf(symbol) + symbol.defaultType.allSupertypes.mapNotNull { (it as? KaClassType)?.symbol })
+            .flatMap { owner ->
+                owner.annotations.find { it.classId?.asFqNameString() == "kvue.annotation.SlotNames" }?.strings("value").orEmpty()
+            }.distinct().toList()
+        require(slotNames.none(String::isBlank)) { "Slot names cannot be empty." }
         val model = ComponentModel(ClassName(classId.packageFqName.asString(), classId.shortClassName.asString()),
             props.sortedBy { !it.required }, events, jsImport,
             if (symbol.visibility == KaSymbolVisibility.INTERNAL) KModifier.INTERNAL else KModifier.PUBLIC,
-            methods, exposedProperties, js?.boolean("hasInstance", true) ?: true)
+            methods, exposedProperties, js?.boolean("hasInstance", true) ?: true, slotNames)
         require(model.bindingNameConflicts().isEmpty()) { "Conflicting binding parameter names: ${model.bindingNameConflicts()}" }
         require(model.exposedNameConflicts().isEmpty()) { "Conflicting exposed member names: ${model.exposedNameConflicts()}" }
         require(model.hasInstance || (methods.isEmpty() && exposedProperties.isEmpty())) { "Functional components have no public component instance." }
@@ -170,6 +175,9 @@ internal object KotlinComponentReader {
         ((arguments.find { it.name.asString() == name }?.expression as? KaAnnotationValue.ConstantValue)?.value?.value as? String) ?: default
     private fun KaAnnotation.boolean(name: String, default: Boolean = false): Boolean =
         ((arguments.find { it.name.asString() == name }?.expression as? KaAnnotationValue.ConstantValue)?.value?.value as? Boolean) ?: default
+    private fun KaAnnotation.strings(name: String): List<String> =
+        (arguments.find { it.name.asString() == name }?.expression as? KaAnnotationValue.ArrayValue)?.values.orEmpty()
+            .mapNotNull { ((it as? KaAnnotationValue.ConstantValue)?.value?.value as? String) }
 
     private fun KaSession.toClassType(type: KaClassType): TypeName {
         val id = type.classId

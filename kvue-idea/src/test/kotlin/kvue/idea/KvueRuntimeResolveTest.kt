@@ -58,7 +58,7 @@ class KvueRuntimeResolveTest : LightJavaCodeInsightFixtureTestCase() {
                 commit()
             }
         }
-        for (property in listOf("kvue.test.js.stdlib", "kvue.test.js.dom", "kvue.test.runtime.klib")) {
+        for (property in listOf("kvue.test.js.stdlib", "kvue.test.js.dom", "kvue.test.runtime.klib", "kvue.test.kvui.klib")) {
             val library = File(System.getProperty(property))
             assertTrue("Missing test library: $library", library.isFile)
             VfsRootAccess.allowRootAccess(testRootDisposable, library.parent)
@@ -100,6 +100,97 @@ class KvueRuntimeResolveTest : LightJavaCodeInsightFixtureTestCase() {
                 .style { this["fontWeight"] = "600" }
         """.trimIndent())
         assertEmpty(myFixture.doHighlighting(HighlightSeverity.ERROR))
+    }
+
+    fun testInlineSlotsAndHtmlNamesResolveFromRealKlibs() {
+        myFixture.addFileToProject("demo/Panel.kt", """
+            package demo
+            import kvue.Component
+            import kvue.annotation.*
+            import kvue.vdom.RenderFun
+            @VueComponent
+            @SlotNames("header", "footer")
+            class Panel : Component() {
+                @Emit private val close: () -> Unit by event()
+                override val body = RenderFun { slot("header"); slot(); slot("footer") }
+            }
+        """.trimIndent())
+        myFixture.configureByText("Slots.kt", """
+            package demo
+            import kvue.vdom.RenderFun
+            import kvui.header
+            import kvui.text
+            val sam = kvue.vdom.ComponentContent<PanelVue.Content> {
+                slot("header") { text("sam") }
+                slots.footer { text("sam footer") }
+            }
+            val content = RenderFun {
+                Panel {
+                    slot("header") { text("title") }
+                    header { text("actual HTML header") }
+                    slots.footer { text("footer") }
+                }.slot("extra") { text("extra") }.onClose {}
+            }
+        """.trimIndent())
+        publishNativeComponents()
+        assertEmpty(myFixture.doHighlighting(HighlightSeverity.ERROR))
+    }
+
+    fun testInlineSlotsReportMisplacementAndSharedDefaultLocals() {
+        myFixture.addFileToProject("demo/Panel.kt", """
+            package demo
+            import kvue.Component
+            import kvue.annotation.*
+            import kvue.vdom.RenderFun
+            @VueComponent @SlotNames("header")
+            class Panel : Component() { override val body = RenderFun {} }
+        """.trimIndent())
+        myFixture.configureByText("BadSlots.kt", """
+            package demo
+            import kvue.vdom.RenderFun
+            import kvui.text
+            val content = RenderFun {
+                Panel {
+                    val shared = "default local"
+                    slots.header { text(shared) }
+                }
+                Panel { if (true) slot("header") { text("nested declaration") } }
+            }
+        """.trimIndent())
+        publishNativeComponents()
+        val descriptions = myFixture.doHighlighting(HighlightSeverity.ERROR).map { it.description.orEmpty() }
+        assertTrue(descriptions.toString(), descriptions.any { it.contains("Move shared declarations") })
+        assertTrue(descriptions.toString(), descriptions.any { it.contains("Declare slots directly") })
+    }
+
+    fun testSlotNamespaceCompletionDoesNotOfferHtmlElements() {
+        myFixture.addFileToProject("demo/Panel.kt", """
+            package demo
+            import kvue.Component
+            import kvue.annotation.*
+            import kvue.vdom.RenderFun
+            @VueComponent @SlotNames("header", "footer")
+            class Panel : Component() { override val body = RenderFun {} }
+        """.trimIndent())
+        myFixture.configureByText("SlotCompletion.kt", """
+            package demo
+            import kvue.vdom.RenderFun
+            import kvui.*
+            val content = RenderFun { Panel { slots.<caret> } }
+        """.trimIndent())
+        publishNativeComponents()
+        val names = myFixture.completeBasic().map { it.lookupString }
+        assertTrue(names.toString(), "header" in names)
+        assertTrue(names.toString(), "footer" in names)
+        assertFalse(names.toString(), "div" in names)
+    }
+
+    private fun publishNativeComponents() {
+        PsiDocumentManager.getInstance(project).commitAllDocuments()
+        val service = project.service<KvueProjectService>()
+        val scan = allowAnalysisOnEdt { ReadAction.compute<KvueProjectService.Scan, RuntimeException> { service.scan(ExternalSnapshot()) } }
+        assertEmpty(scan.diagnostics)
+        WriteAction.run<RuntimeException> { service.publish(scan) }
     }
 
     fun testNativeAndImportedChainsUseRealRuntimeTypesBeforeKsp() {

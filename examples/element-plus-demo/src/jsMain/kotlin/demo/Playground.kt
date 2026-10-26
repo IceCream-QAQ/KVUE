@@ -43,7 +43,8 @@ class Playground : Component() {
             }
 
             div(className = "grid") {
-                ElCard(header = "01 / 输入与状态", shadow = "never") {
+                ElCard(shadow = "never") {
+                    slot("header") { text("01 / 输入与状态") }
                     label(className = "field-label") { text("你的名字") }
                     ElInput(
                         vModel = name,
@@ -72,7 +73,9 @@ class Playground : Component() {
                     )
                 }
 
-                ElCard(header = "02 / 事件与渲染", shadow = "never") {
+                ElCard(shadow = "never") {
+                    slots.header { text("02 / 事件与渲染") }
+                    slots.footer { text("slots.header / slots.footer 与普通内容共同组成组件插槽。") }
                     div(className = "counter-value") { text(count.toString()) }
                     p(className = "muted") { text(countNotice) }
                     div(className = "button-row") {

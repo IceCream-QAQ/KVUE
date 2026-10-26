@@ -50,7 +50,11 @@ internal class ComponentVirtualFile(private val component: EditorComponent) : Ka
     override fun createNavigationTargetsProvider() = object : KaResolveExtensionNavigationTargetsProvider() {
         override fun KaSession.getNavigationTargets(element: KtElement): Collection<PsiElement> {
             val declaration = PsiTreeUtil.getParentOfType(element, KtNamedDeclaration::class.java, false)
-            val target = component.members[declaration?.name]?.element ?: component.origin.element
+            val owner = PsiTreeUtil.getParentOfType(element, org.jetbrains.kotlin.psi.KtClass::class.java)
+            val isSlotApi = owner?.name in setOf(model.contentName.simpleName, model.slotsName.simpleName) ||
+                (owner?.name == model.nodeName.simpleName && declaration?.name == "slot")
+            val target = if (isSlotApi) component.origin.element
+                else component.members[declaration?.name]?.element ?: component.origin.element
             return listOfNotNull(target)
         }
     }

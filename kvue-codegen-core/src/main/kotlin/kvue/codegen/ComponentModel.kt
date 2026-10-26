@@ -14,11 +14,25 @@ data class ComponentModel(
     val methods: List<ExposedMethodModel> = emptyList(),
     val exposedProperties: List<ExposedPropertyModel> = emptyList(),
     val hasInstance: Boolean = true,
+    val slotNames: List<String> = emptyList(),
 ) {
     val generatedName = ClassName(className.packageName, className.simpleName + "Vue")
     val nodeName = ClassName(className.packageName, className.simpleName + "Node")
     val instanceName = ClassName(className.packageName, className.simpleName + "Instance")
+    val contentName = generatedName.nestedClass("Content")
+    val slotsName = generatedName.nestedClass("Slots")
     val generatedClassNames get() = listOfNotNull(generatedName, nodeName, instanceName.takeIf { hasInstance })
+    val slotMembers: Map<String, String> get() {
+        val used = mutableSetOf<String>()
+        return slotNames.distinct().sorted().associateWith { wire ->
+            val parts = wire.split(Regex("[^\\p{L}\\p{N}_]+")).filter(String::isNotEmpty)
+            var name = parts.firstOrNull().orEmpty() + parts.drop(1).joinToString("") { it.replaceFirstChar(Char::uppercaseChar) }
+            if (name.isEmpty() || name.all { it == '_' }) name = "slot"
+            if (name.first().isDigit()) name = "slot" + name.replaceFirstChar(Char::uppercaseChar)
+            while (!used.add(name)) name += "Slot"
+            name
+        }
+    }
     val fileName = className.simpleName + "KVueGenerated"
 
     val bindings: List<BindingModel> get() = props.mapNotNull { prop ->

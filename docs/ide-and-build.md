@@ -10,7 +10,7 @@
 | `kvui` | 标准 HTML 元素 DSL、类型化 DOM 属性和事件、原生表单绑定 | runtime、Kotlin DOM API |
 | `kvue-codegen-core` | 独立组件模型、参数命名、可选参数规则、Kotlin 实现和编辑期声明生成 | KotlinPoet |
 | `kvue-ksp` | 读取 KSP 符号、解析别名和泛型继承、验证组件、写出实际源码 | KSP API、codegen-core |
-| `kvue-compiler-plugin` | 检查调用处的可写目标，把绑定参数展开为 prop 读取与 update 事件赋值 | Kotlin 2.4.21 compiler IR API |
+| `kvue-compiler-plugin` | 展开双向绑定，并将内嵌具名插槽与延迟执行的默认内容分开 | Kotlin 2.4.21 compiler IR API |
 | `tools/js-components`（`:js-component-importer`） | 静态分析第三方 TS/JS；自身维护 Node 分析测试、浏览器接入测试及夹具 | Node.js、TypeScript；测试使用 runtime、kvui、KSP |
 | `kvue-gradle-plugin` | 为消费方配置依赖、源码目录和生成任务，并内置 JS 导入器 | Gradle API；消费方提供 Kotlin Gradle / KSP Gradle API |
 | `kvue-idea` | 后台分析编辑器源码，发布 K2 虚拟声明，处理更新、导航和旧产物遮蔽 | IntelliJ/Kotlin K2 API、codegen-core；内置 JS 导入器 |

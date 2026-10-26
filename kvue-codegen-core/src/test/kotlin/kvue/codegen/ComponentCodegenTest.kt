@@ -5,12 +5,35 @@ import com.squareup.kotlinpoet.FunSpec
 import com.squareup.kotlinpoet.INT
 import com.squareup.kotlinpoet.KModifier
 import com.squareup.kotlinpoet.STRING
+import com.squareup.kotlinpoet.TypeSpec
+import com.squareup.kotlinpoet.ParameterizedTypeName.Companion.parameterizedBy
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class ComponentCodegenTest {
+    @Test fun slotsHaveDedicatedScopesAndPreserveTheNodeType() {
+        val model = ComponentModel(ClassName("sample", "Panel"), emptyList(), emptyList(),
+            slotNames = listOf("header", "footer", "empty-state", "emptyState"))
+        val built = ComponentCodegen.generate(model).single()
+        val editor = ComponentCodegen.generate(model, true).single()
+        for (file in listOf(built, editor)) {
+            val types = file.members.filterIsInstance<TypeSpec>().associateBy { it.name }
+            val scopes = types.getValue("PanelVue").typeSpecs.associateBy { it.name }
+            assertEquals(ClassName("kvue.vdom", "ComponentContentScope"), scopes.getValue("Content").superclass)
+            val slots = scopes.getValue("Slots").funSpecs.associateBy { it.name }
+            assertEquals(ClassName("kvue.vdom", "RenderFun"), slots.getValue("header").parameters.single().type)
+            assertEquals(ClassName("kvue.vdom", "RenderFun"), slots.getValue("footer").parameters.single().type)
+            assertEquals(model.nodeName, types.getValue("PanelNode").funSpecs.single { it.name == "slot" }.returnType)
+            val content = file.members.filterIsInstance<FunSpec>().single().parameters.single { it.name == "content" }
+            assertEquals(ClassName("kvue.vdom", "ComponentContent").parameterizedBy(model.contentName).copy(nullable = true), content.type)
+        }
+        assertEquals(4, model.slotMembers.values.toSet().size)
+        assertEquals(setOf("PanelVue", "PanelNode", "PanelInstance"),
+            model.generatedClassNames.map { it.simpleName }.toSet())
+    }
+
     private val model = ComponentModel(
         ClassName("sample", "Counter"),
         listOf(PropModel("title", "title", STRING, false, true),

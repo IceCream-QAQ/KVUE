@@ -42,8 +42,9 @@ open class ElementNode(
         properties["ref"] = target.callback
     }
 
-    fun slot(name: String, renderFun: RenderFun) {
+    open fun slot(name: String, renderFun: RenderFun): ElementNode {
         children.getOrPut(name) { mutableListOf() }.add(renderFun)
+        return this
     }
 
     /** Applied while the VNode is built inside Vue's current render context. */

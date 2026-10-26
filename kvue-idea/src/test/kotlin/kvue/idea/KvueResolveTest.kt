@@ -65,6 +65,8 @@ class KvueResolveTest : LightJavaCodeInsightFixtureTestCase() {
             annotation class Emit(val name: String = "", val variadic: Boolean = false)
             annotation class Expose(val name: String = "", val variadic: Boolean = false)
             annotation class JsOptional
+            annotation class SlotNames(vararg val value: String)
+            annotation class SlotDeclaration(val name: String = "")
             @Target(AnnotationTarget.VALUE_PARAMETER)
             annotation class VBind(val prop: String, val event: String, val variadic: Boolean = false)
             @Target(AnnotationTarget.VALUE_PARAMETER)
@@ -93,12 +95,18 @@ class KvueResolveTest : LightJavaCodeInsightFixtureTestCase() {
         """.trimIndent())
         myFixture.addFileToProject("kvue/Render.kt", """
             package kvue.vdom
-            class RenderGroup
+            open class RenderGroup
             fun interface RenderFun { fun RenderGroup.render() }
+            open class ComponentContentScope : RenderGroup() {
+                @kvue.annotation.SlotDeclaration fun slot(name: String, content: RenderFun) {}
+            }
+            fun interface ComponentContent<in S : ComponentContentScope> { fun S.render() }
         """.trimIndent())
         myFixture.addFileToProject("kvue/Element.kt", """
             package kvue.vdom.knode
-            open class ElementNode(definition: Any? = null)
+            open class ElementNode(definition: Any? = null) {
+                open fun slot(name: String, renderFun: kvue.vdom.RenderFun): ElementNode = this
+            }
             fun <N : ElementNode> N.style(block: () -> Unit): N = this
         """.trimIndent())
         assertTrue(KaResolveExtensionProvider.EP_NAME.getExtensionList(project).any { it is KvueResolveExtensionProvider })
@@ -482,6 +490,25 @@ class KvueResolveTest : LightJavaCodeInsightFixtureTestCase() {
         assertEquals(file.virtualFile, target.containingFile.virtualFile)
         assertTrue(target is KtNamedFunction)
         assertEquals("ordinary", (target as KtNamedFunction).name)
+    }
+
+    fun testSlotNavigationDoesNotSelectAnUnrelatedPropWithTheSameName() {
+        val source = myFixture.addFileToProject("sample/Panel.kt", """
+            package sample
+            import kvue.Component
+            import kvue.annotation.*
+            @VueComponent @SlotNames("header")
+            class Panel : Component() { @Prop private val header by property("") }
+        """.trimIndent()) as KtFile
+        myFixture.configureByText("SlotNavigation.kt", """
+            import sample.Panel
+            import kvue.vdom.RenderGroup
+            fun RenderGroup.page() { Panel { slots.he<caret>ader {} } }
+        """.trimIndent())
+        refresh()
+        assertEmpty(myFixture.doHighlighting(HighlightSeverity.ERROR))
+        val target = gotoTargets().single()
+        assertEquals(source.declarations.filterIsInstance<KtClass>().single().textOffset, target.textOffset)
     }
 
     private fun navigationCaller(): KtFile = myFixture.configureByText("Usage.kt", """

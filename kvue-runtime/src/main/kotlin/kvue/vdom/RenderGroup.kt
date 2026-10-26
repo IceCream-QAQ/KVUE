@@ -7,7 +7,7 @@ import vue.VNode
 annotation class KVueDsl
 
 @KVueDsl
-class RenderGroup {
+open class RenderGroup {
     private val elements = mutableListOf<KNode>()
 
     fun addElement(element: KNode) {

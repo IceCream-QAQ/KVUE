@@ -10,6 +10,7 @@ class KvueCompilerPluginRegistrar : CompilerPluginRegistrar() {
     override val pluginId: String = "org.kvue.bindings"
     override val supportsK2: Boolean = true
     override fun ExtensionStorage.registerExtensions(configuration: CompilerConfiguration) {
+        IrGenerationExtension.registerExtension(SlotIrExtension())
         IrGenerationExtension.registerExtension(BindingIrExtension())
     }
 }

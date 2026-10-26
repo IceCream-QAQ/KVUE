@@ -161,6 +161,7 @@ fun main() {
 | `CounterNode` | 保留组件身份，提供 `onChanged` 等专属事件方法 |
 | `CounterVue.ref()` | 创建 `ComponentRef<CounterInstance>` 实例引用 |
 | `CounterInstance` | 提供 `reset()` 等显式导出的公开接口 |
+| `CounterVue.Content` / `CounterVue.Slots` | 组件内容块的接收者与具名插槽接口 |
 
 组件定义由多个节点共享，每个挂载的组件拥有独立的 Kotlin 实例和状态。父组件重新渲染时，Vue 根据节点类型与 `key` 管理实例复用。
 
@@ -244,7 +245,9 @@ override val body = RenderFun {
 
 `.css {}` 用于添加或按条件添加类名，`.style {}` 用于合并内联样式。两者都会保留具体节点类型，因此后面仍能继续调用组件的事件方法。它们不生成样式表、选择器或伪类规则。
 
-组件调用的尾随函数块是默认插槽，子组件通过 `slot()` 渲染。具名插槽可以用 `节点.slot("header") { ... }` 配置，由子组件调用 `slot("header")` 渲染。插槽按需执行，当前尚未生成带类型参数的作用域插槽接口。
+组件内容块中的普通内容组成默认插槽，具名插槽可以直接写为 `slot("header") { ... }`。声明了名称的组件还提供 `slots.header { ... }`，与 `kvui.header` 等 HTML 函数区分。原生组件使用 `@SlotNames` 声明名称，第三方组件从 TypeScript 声明中读取。各插槽仍按需执行。
+
+原有 `节点.slot("header") { ... }` 也可使用，并能继续链式配置。内嵌声明的位置、局部变量规则和复用方式见 [插槽说明](docs/slots.md)。当前插槽回调尚不接收作用域参数。
 
 KVUE 保持稳定的片段根结构，并将透传属性合并到唯一的元素或组件根节点；多根组件需要明确选择属性的落点。
 原生标签、表单绑定和属性边界见 [KVUI 使用说明](kvui/README.md)。

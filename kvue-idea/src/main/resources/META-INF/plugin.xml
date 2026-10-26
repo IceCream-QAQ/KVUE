@@ -14,6 +14,7 @@
     <extensions defaultExtensionNs="com.intellij">
         <gotoDeclarationHandler implementation="kvue.idea.KvueGotoDeclarationHandler" order="first"/>
         <annotator language="kotlin" implementationClass="kvue.idea.KvueBindingAnnotator"/>
+        <annotator language="kotlin" implementationClass="kvue.idea.KvueSlotAnnotator"/>
         <postStartupActivity implementation="kvue.idea.KvueStartupActivity"/>
     </extensions>
     <actions>
