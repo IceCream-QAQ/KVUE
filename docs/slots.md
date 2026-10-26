@@ -52,6 +52,8 @@ class AComponent : Component() {
 
 名称可以从基类继承。`@SlotNames` 用于生成命名成员，不限制显式 `slot("任意名称")` 的使用。
 
+插槽出口不带内容块。需要向 Vue 模板等父组件传递作用域参数时，写成 `slot("item", mapOf("row" to row))`，参数会作为普通 JS 对象传给父组件的插槽函数；省略时传空对象。
+
 第三方组件从 TypeScript 的 `$slots` 声明读取名称，并由 KSP 和 IDEA 生成相同的成员。读取不到名称时仍可使用显式写法。非普通标识符会转换为 Kotlin 成员名，例如 `empty-state` 对应 `slots.emptyState`；转换重名时添加 `Slot` 后缀。
 
 ## 延迟执行与声明位置
@@ -60,7 +62,7 @@ class AComponent : Component() {
 
 当前要求：
 
-- 内嵌的 `slot(...) {}`、`slots.xxx {}` 应直接放在组件内容块顶层。
+- 内嵌的 `slot(...) {}`、`slots.xxx {}` 应直接放在组件内容块顶层。写在 `div {}` 等元素内容里的 `slot(name) {}` 会报编译错误，不会被当成当前组件的插槽出口。
 - 具名插槽不能引用在该组件内容块中声明的默认插槽局部变量。共享值应声明在组件调用之前，或者分别放入各插槽内部。
 - 显式的 `slot("default") {}` 与普通默认内容不能混用。
 

@@ -1,5 +1,6 @@
 package kvue
 
+import kvue.`fun`.toJavaScriptObject
 import kvue.reactive.EventValue
 import kvue.reactive.PropertyValue
 import kvue.reactive.RefValue
@@ -29,14 +30,26 @@ abstract class Component {
 
     abstract val body: RenderFun
 
-    /** Invokes a Vue slot during this component's render, preserving lazy evaluation. */
-    protected fun RenderGroup.slot(name: String = "default", props: dynamic = null) {
+    /**
+     * Invokes a Vue slot during this component's render, preserving lazy evaluation.
+     * Props reach the slot function as one plain JS object, as with Vue's renderSlot.
+     */
+    protected fun RenderGroup.slot(name: String = "default", props: Map<String, Any?> = emptyMap()) {
         val slotFunction = instanceContext.setupContext.slots[name]
         if (jsTypeOf(slotFunction) == "function") {
-            val nodes = slotFunction(props).unsafeCast<Array<VNode>>()
+            val nodes = slotFunction(props.toJavaScriptObject()).unsafeCast<Array<VNode>>()
             nodes.forEach { addVNode(it) }
         }
     }
+
+    /** Keeps a misplaced slot declaration from resolving to this component's own slot outlet. */
+    @Deprecated(
+        "slot(name) { ... } declares a slot for a child component and must be written directly in that " +
+            "component's content block. Call slot(name) without a block to render this component's own slot.",
+        level = DeprecationLevel.ERROR,
+    )
+    protected fun RenderGroup.slot(name: String, content: RenderFun): Unit =
+        error("Slot '$name' must be declared directly in component content.")
 }
 
 

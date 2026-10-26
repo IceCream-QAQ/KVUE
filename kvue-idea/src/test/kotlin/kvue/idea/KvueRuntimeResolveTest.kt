@@ -163,6 +163,39 @@ class KvueRuntimeResolveTest : LightJavaCodeInsightFixtureTestCase() {
         assertTrue(descriptions.toString(), descriptions.any { it.contains("Declare slots directly") })
     }
 
+    fun testSlotDeclarationsNestedInElementsAreNotComponentOutlets() {
+        myFixture.addFileToProject("demo/Panel.kt", """
+            package demo
+            import kvue.Component
+            import kvue.annotation.*
+            import kvue.vdom.RenderFun
+            @VueComponent @SlotNames("header")
+            class Panel : Component() { override val body = RenderFun {} }
+        """.trimIndent())
+        myFixture.configureByText("Host.kt", """
+            package demo
+            import kvue.Component
+            import kvue.vdom.RenderFun
+            import kvui.div
+            import kvui.text
+            class Host : Component() {
+                override val body = RenderFun {
+                    Panel {
+                        slot("header") { text("declared") }
+                        slot("footer")
+                        div { slot("header") { text("misplaced") } }
+                    }
+                    div { slot("item", mapOf("row" to 1)) }
+                }
+            }
+        """.trimIndent())
+        publishNativeComponents()
+        // Inside a component, the nested block must not silently become an outlet with lambda props.
+        val descriptions = myFixture.doHighlighting(HighlightSeverity.ERROR).map { it.description.orEmpty() }
+        assertEquals(descriptions.toString(), 1, descriptions.size)
+        assertTrue(descriptions.single(), descriptions.single().contains("declares a slot for a child component"))
+    }
+
     fun testSlotNamespaceCompletionDoesNotOfferHtmlElements() {
         myFixture.addFileToProject("demo/Panel.kt", """
             package demo

@@ -11,6 +11,7 @@ import kvue.fixtures.InlineSlotHostVue
 import kvue.fixtures.InlineSlotProbe
 import kvue.fixtures.RenderProbe
 import kvue.fixtures.RerenderHostVue
+import kvue.fixtures.ScopedSlotSourceVue
 import kvue.`fun`.jso
 import kotlin.js.Promise
 import kotlin.test.Test
@@ -18,7 +19,9 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import vue.VNode
 import vue.createApp
+import vue.h
 import vue.nextTick
 
 private external val document: dynamic
@@ -182,6 +185,32 @@ class ComponentRuntimeTest {
                 assertEquals("", text("[data-render-counter='optional']"))
                 assertEquals(1, RenderProbe.renders["plain"])
             }
+        }
+    }
+
+    @Test
+    fun slotOutletsPassPropsAsPlainObjects() {
+        var itemProps: dynamic = null
+        var defaultProps: dynamic = null
+        // A plain Vue parent, as a template would compile it, receives the scoped slot props.
+        val parent = jso("render" to {
+            h(ScopedSlotSourceVue.definition.vue, null, jso(
+                "item" to { props: dynamic -> itemProps = props; emptyArray<VNode>() },
+                "default" to { props: dynamic -> defaultProps = props; emptyArray<VNode>() },
+            ))
+        })
+        val host = document.createElement("div")
+        document.body.appendChild(host)
+        val app = createApp(parent)
+        try {
+            app.mount(host)
+            assertEquals("first", itemProps.label as String)
+            assertEquals(0, itemProps.index as Int)
+            // Like Vue's renderSlot, omitted props are an empty object, so parents can destructure them.
+            assertEquals(0, js("Object.keys")(defaultProps).length as Int)
+        } finally {
+            app.unmount()
+            host.remove()
         }
     }
 

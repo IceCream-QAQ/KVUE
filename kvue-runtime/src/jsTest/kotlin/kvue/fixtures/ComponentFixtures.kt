@@ -286,6 +286,14 @@ internal class RerenderHost : Component() {
 }
 
 @VueComponent
+internal class ScopedSlotSource : Component() {
+    override val body = RenderFun {
+        slot("item", mapOf("label" to "first", "index" to 0))
+        slot()
+    }
+}
+
+@VueComponent
 internal class FailingComponent : Component() {
     init {
         error("Expected constructor failure")
