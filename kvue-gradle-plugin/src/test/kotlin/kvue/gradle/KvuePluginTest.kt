@@ -49,6 +49,36 @@ class KvuePluginTest {
         }
     }
 
+    @Test fun artifactVersionsDefaultToThePluginVersion() {
+        val pluginVersion = System.getProperty("kvue.plugin.version")
+        val project = temporary.newFolder("default-version")
+        project.resolve("settings.gradle.kts").writeText(settings("default-version"))
+        project.resolve("build.gradle.kts").writeText("""
+            import kvue.gradle.KvueExtension
+            plugins {
+                kotlin("multiplatform") version "2.4.21"
+                id("com.google.devtools.ksp") version "2.3.12"
+                id("org.kvue") version "$pluginVersion"
+            }
+            repositories { mavenCentral() }
+            kotlin { js { browser() } }
+            tasks.register("verifyVersions") {
+                doLast {
+                    val expected = "$pluginVersion"
+                    check(project.extensions.getByType(KvueExtension::class.java).version.get() == expected)
+                    check(configurations.getByName("jsMainApi").dependencies.single { it.name == "kvue-runtime" }.version == expected)
+                    check(configurations.getByName("kspJs").dependencies.single { it.name == "kvue-ksp" }.version == expected)
+                    check(configurations.filter { it.name.startsWith("kotlinCompilerPluginClasspath") }.flatMap { it.dependencies }
+                        .any { it.name == "kvue-compiler-plugin" && it.version == expected })
+                    println("KVUE artifact versions follow the plugin version")
+                }
+            }
+        """.trimIndent())
+        val result = GradleRunner.create().withProjectDir(project)
+            .withArguments("verifyVersions", "--stacktrace", "--console=plain").build()
+        assertTrue(result.output.contains("KVUE artifact versions follow the plugin version"), result.output)
+    }
+
     @Test fun reportsMissingRequiredPluginsWithoutApplyingThemImplicitly() {
         val project = temporary.newFolder("missing-plugins")
         project.resolve("settings.gradle.kts").writeText(settings("missing-plugins"))

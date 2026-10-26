@@ -5,6 +5,7 @@ import java.nio.file.LinkOption.NOFOLLOW_LINKS
 import java.nio.file.Path
 import java.nio.file.StandardOpenOption.CREATE_NEW
 import java.nio.file.attribute.PosixFilePermission
+import java.util.Properties
 
 enum class KvueStarter(private val label: String) {
     KVUI("基础界面（KVUI）"),
@@ -23,11 +24,18 @@ enum class KvueRepository(private val label: String) {
 data class KvueProjectOptions(
     val name: String,
     val packageName: String = "app",
-    val version: String = "0.1.0-SNAPSHOT",
+    val version: String = KvueVersion.current,
     val starter: KvueStarter = KvueStarter.KVUI,
     val repository: KvueRepository = KvueRepository.GITHUB,
     val localRepository: String = "",
 )
+
+/** Written into the plugin's resources by its own build; KVUE libraries are released with the same version. */
+internal object KvueVersion {
+    val current: String = checkNotNull(KvueVersion::class.java.getResourceAsStream("version.properties")) {
+        "The KVUE IDEA plugin is missing its version resource."
+    }.use { stream -> Properties().apply { load(stream) }.getProperty("version") }
+}
 
 /** No IDE or network access: generation can also be exercised against a real Gradle consumer. */
 object KvueProjectTemplate {

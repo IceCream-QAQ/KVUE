@@ -47,6 +47,10 @@ tasks.processResources {
         include("gradlew", "gradlew.bat", "gradle/wrapper/gradle-wrapper.jar", "gradle/wrapper/gradle-wrapper.properties")
         into("project-template")
     }
+    // New projects default to the KVUE release this plugin was built with.
+    val pluginVersion = version.toString()
+    inputs.property("kvueVersion", pluginVersion)
+    filesMatching("kvue/idea/version.properties") { expand("version" to pluginVersion) }
 }
 tasks.named<JavaExec>("runIde") {
     // The sandbox keeps its Gradle model between runs, while our locally published SNAPSHOT changes.
@@ -72,6 +76,7 @@ tasks.test {
     systemProperty("kvue.test.js.dom", analysisJsDom.singleFile.absolutePath)
     systemProperty("kvue.test.runtime.klib", runtimeKlib.asFile.absolutePath)
     systemProperty("kvue.test.kvui.klib", kvuiKlib.asFile.absolutePath)
+    systemProperty("kvue.plugin.version", version.toString())
     doFirst {
         // Match Maven's immutable, content-addressed KLIB paths. Reusing a mutable build/libs URL
         // can leave IDEA's persisted archive stubs describing the previous snapshot.

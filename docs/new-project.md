@@ -10,7 +10,7 @@
 | 包名 | 示例 Kotlin 文件所在的包，默认为 `app` |
 | 模板 | 基础 KVUI 界面，或带有 Element Plus 的界面 |
 | JDK | 选择 JDK 21 或更高版本，也可使用 IDEA 的 SDK 选择器添加 JDK |
-| KVUE 版本 | 默认为 `0.1.0-SNAPSHOT`；运行库、KVUI、KSP 和编译器插件使用同一版本 |
+| KVUE 版本 | 默认为当前 IDEA 插件的版本；运行库、KVUI、KSP 和编译器插件使用同一版本 |
 | 依赖仓库 | 默认 GitHub Packages，也可选择已发布开发依赖的本地 Maven 仓库目录 |
 
 两个模板都包含可编辑的名字、计数按钮和重置按钮。基础模板使用原生 HTML 封装；Element Plus 模板使用 `ElInput`、`ElButton` 和 `ElCard`，同时配置 npm 依赖、样式导入及组件声明分析。
