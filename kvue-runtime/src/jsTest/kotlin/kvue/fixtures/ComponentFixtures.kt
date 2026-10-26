@@ -294,6 +294,21 @@ internal class ScopedSlotSource : Component() {
 }
 
 @VueComponent
+internal class MissingDefaultCard : Component() {
+    // The helper hides the missing default from the compiler check, so only the runtime can report it.
+    @Prop private val title by noDefault<String>()
+
+    private fun <T> noDefault() = property<T>()
+
+    override val body = RenderFun { text(title) }
+}
+
+@VueComponent
+internal class MissingDefaultHost : Component() {
+    override val body = RenderFun { MissingDefaultCard() }
+}
+
+@VueComponent
 internal class FailingComponent : Component() {
     init {
         error("Expected constructor failure")

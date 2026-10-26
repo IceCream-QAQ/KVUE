@@ -13,6 +13,7 @@ class ComponentContext internal constructor(
     val props: dynamic,
     internal val setupContext: dynamic,
     internal val propNames: Map<String, String>,
+    internal val requiredProps: Set<String>,
 ) {
     internal var events: Map<String, Any> = emptyMap()
 
@@ -38,9 +39,10 @@ class ComponentDefinition<T : Component>(
         val propNames = props.associate { prop ->
             prop.propertyName to prop.name.replace(Regex("-(\\w)")) { it.groupValues[1].uppercase() }
         }
+        val requiredProps = props.filter { it.required }.mapTo(mutableSetOf()) { it.propertyName }
 
         val setup: VueSetupFun = { inputProps, setupContext ->
-            val context = ComponentContext(inputProps, setupContext, propNames)
+            val context = ComponentContext(inputProps, setupContext, propNames, requiredProps)
             context.events = bindEvents(context)
             val instance = ComponentConstruction.create(context, factory)
             if (expose != null) setupContext.expose(expose(instance))

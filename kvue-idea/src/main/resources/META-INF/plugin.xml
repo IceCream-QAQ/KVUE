@@ -15,6 +15,7 @@
         <gotoDeclarationHandler implementation="kvue.idea.KvueGotoDeclarationHandler" order="first"/>
         <annotator language="kotlin" implementationClass="kvue.idea.KvueBindingAnnotator"/>
         <annotator language="kotlin" implementationClass="kvue.idea.KvueSlotAnnotator"/>
+        <annotator language="kotlin" implementationClass="kvue.idea.KvuePropAnnotator"/>
         <postStartupActivity implementation="kvue.idea.KvueStartupActivity"/>
     </extensions>
     <actions>

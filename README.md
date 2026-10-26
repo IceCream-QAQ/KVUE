@@ -177,6 +177,8 @@ fun main() {
 | 可选的非空属性 | 省略参数或传 `null` 时使用组件默认值 |
 | 可选的可空属性 | 省略时使用默认值，使用 `provided(null)` 显式传入空值 |
 
+可选属性必须通过 `property(默认值)` 提供默认值，可空属性可以写 `property(null)`；只写 `property()` 时要标记 `@Prop(required = true)`，否则编译报错，IDEA 中也会直接标出。
+
 事件使用 `@Emit` 和 `event()` 委托声明，支持无参数和多参数回调。事件名 `saved`、`changed` 和 `update:modelValue` 分别生成 `onSaved`、`onChanged` 和 `onUpdateModelValue` 参数及链式方法。
 
 参数监听器在前，链式监听器按调用顺序追加。同名事件不会互相覆盖，也不会覆盖双向绑定的回写逻辑。重新渲染会更新监听配置，不会跨渲染累积订阅。

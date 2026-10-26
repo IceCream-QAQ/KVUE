@@ -9,6 +9,7 @@ import kvue.fixtures.SlotHostVue
 import kvue.fixtures.SlotProbe
 import kvue.fixtures.InlineSlotHostVue
 import kvue.fixtures.InlineSlotProbe
+import kvue.fixtures.MissingDefaultHostVue
 import kvue.fixtures.RenderProbe
 import kvue.fixtures.RerenderHostVue
 import kvue.fixtures.ScopedSlotSourceVue
@@ -208,6 +209,27 @@ class ComponentRuntimeTest {
             assertEquals(0, itemProps.index as Int)
             // Like Vue's renderSlot, omitted props are an empty object, so parents can destructure them.
             assertEquals(0, js("Object.keys")(defaultProps).length as Int)
+        } finally {
+            app.unmount()
+            host.remove()
+        }
+    }
+
+    @Test
+    fun optionalPropsWithoutDefaultsReportTheMissingDefault() {
+        val host = document.createElement("div")
+        document.body.appendChild(host)
+        val app = createApp(MissingDefaultHostVue.definition.vue)
+        var captured: Throwable? = null
+        // A handled error lets Vue finish the render; an escaping one would leave its rendering state behind.
+        app.config.errorHandler = { error, _, _ -> captured = error as? Throwable }
+        try {
+            app.mount(host)
+            assertTrue(captured is IllegalStateException, captured.toString())
+            assertEquals(
+                "Optional prop 'title' has no default value. Use property(default), or mark it @Prop(required = true).",
+                captured?.message,
+            )
         } finally {
             app.unmount()
             host.remove()

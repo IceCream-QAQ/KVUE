@@ -196,6 +196,28 @@ class KvueRuntimeResolveTest : LightJavaCodeInsightFixtureTestCase() {
         assertTrue(descriptions.single(), descriptions.single().contains("declares a slot for a child component"))
     }
 
+    fun testOptionalPropsWithoutDefaultsAreReported() {
+        myFixture.configureByText("Props.kt", """
+            package demo
+            import kvue.Component
+            import kvue.annotation.Prop
+            import kvue.vdom.RenderFun
+            class Card : Component() {
+                @Prop private val title by property<String>()
+                @Prop(name = "note-text") private val note by property<String?>()
+                @Prop(required = true) private val id by property<String>()
+                @Prop private val count by property(0)
+                @Prop private val subtitle by property<String?>(null)
+                private val plain by property<String>()
+                override val body = RenderFun {}
+            }
+        """.trimIndent())
+        val descriptions = myFixture.doHighlighting(HighlightSeverity.ERROR).map { it.description.orEmpty() }
+        assertEquals(descriptions.toString(), 2, descriptions.size)
+        assertTrue(descriptions.toString(), descriptions.any { it.contains("Optional prop 'title' has no default value") })
+        assertTrue(descriptions.toString(), descriptions.any { it.contains("Optional prop 'note' has no default value") })
+    }
+
     fun testSlotNamespaceCompletionDoesNotOfferHtmlElements() {
         myFixture.addFileToProject("demo/Panel.kt", """
             package demo
