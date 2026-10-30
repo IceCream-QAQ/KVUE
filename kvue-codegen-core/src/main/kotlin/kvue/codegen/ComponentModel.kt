@@ -15,6 +15,7 @@ data class ComponentModel(
     val exposedProperties: List<ExposedPropertyModel> = emptyList(),
     val hasInstance: Boolean = true,
     val slotNames: List<String> = emptyList(),
+    val scopedSlots: List<SlotModel> = emptyList(),
 ) {
     val generatedName = ClassName(className.packageName, className.simpleName + "Vue")
     val nodeName = ClassName(className.packageName, className.simpleName + "Node")
@@ -24,7 +25,7 @@ data class ComponentModel(
     val generatedClassNames get() = listOfNotNull(generatedName, nodeName, instanceName.takeIf { hasInstance })
     val slotMembers: Map<String, String> get() {
         val used = mutableSetOf<String>()
-        return slotNames.distinct().sorted().associateWith { wire ->
+        return (slotNames + scopedSlots.map { it.name }).distinct().sorted().associateWith { wire ->
             val parts = wire.split(Regex("[^\\p{L}\\p{N}_]+")).filter(String::isNotEmpty)
             var name = parts.firstOrNull().orEmpty() + parts.drop(1).joinToString("") { it.replaceFirstChar(Char::uppercaseChar) }
             if (name.isEmpty() || name.all { it == '_' }) name = "slot"
@@ -33,6 +34,9 @@ data class ComponentModel(
             name
         }
     }
+    // Keep scope classifiers in a separate namespace from Content and Slots.
+    val slotScopesName = generatedName.nestedClass("SlotScopes")
+    fun slotScopeName(wire: String) = slotScopesName.nestedClass(slotMembers.getValue(wire))
     val fileName = className.simpleName + "KVueGenerated"
 
     val bindings: List<BindingModel> get() = props.mapNotNull { prop ->
@@ -51,6 +55,19 @@ data class ComponentModel(
         val wireNames = mutableSetOf<String>()
         return (methods.map { it.name to it.wireName } + exposedProperties.map { it.name to it.wireName })
             .filter { (name, wire) -> !names.add(name) || !wireNames.add(wire) }.map { it.first }
+    }
+}
+
+data class SlotModel(val name: String, val properties: List<SlotPropertyModel>)
+data class SlotPropertyModel(val name: String, val wireName: String, val type: TypeName)
+
+/** Field names must not shadow the rendering receiver's own API. */
+fun slotPropertyNames(properties: List<SlotPropertyModel>): Map<String, String> {
+    val used = mutableSetOf("slotProps", "slotProp", "addElement", "addVNode", "result", "equals", "hashCode", "toString")
+    return properties.sortedBy { it.name }.associate { property ->
+        var name = property.name
+        while (!used.add(name)) name += "Prop"
+        property.name to name
     }
 }
 

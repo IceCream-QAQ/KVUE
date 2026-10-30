@@ -8,7 +8,10 @@ import demo.elementplus.ElInputVue
 import demo.elementplus.ElProgress
 import demo.elementplus.ElSwitch
 import demo.elementplus.ElTag
+import demo.elementplus.ElTable
+import demo.elementplus.ElTableColumn
 import kvue.Component
+import kvue.`fun`.jso
 import kvue.annotation.VueComponent
 import kvue.vdom.RenderFun
 import kvue.vdom.knode.css
@@ -92,6 +95,25 @@ class Playground : Component() {
                         }
                     }
                     ElProgress(percentage = percentage, strokeWidth = 10.0, color = "#3578e5")
+                }
+
+                ElCard(shadow = "never") {
+                    slots.header { text("03 / 作用域插槽") }
+                    ElTable(data = arrayOf<Any>(jso("name" to name, "count" to count))) {
+                        ElTableColumn(label = "名字") {
+                            slots.default {
+                                val currentName = this.row.name as String
+                                span { text(currentName) }
+                            }
+                        }
+                        ElTableColumn(label = "计数") {
+                            slots.default {
+                                val value = (row.count as Number).toInt()
+                                val position = index.toInt()
+                                span { text("第 $position 行：$value") }
+                            }
+                        }
+                    }
                 }
             }
 

@@ -15,6 +15,7 @@ import com.squareup.kotlinpoet.ParameterizedTypeName.Companion.parameterizedBy
 import com.squareup.kotlinpoet.PropertySpec
 import com.squareup.kotlinpoet.TypeName
 import com.squareup.kotlinpoet.TypeSpec
+import com.squareup.kotlinpoet.TypeVariableName
 import com.squareup.kotlinpoet.UNIT
 
 object ComponentCodegen {
@@ -148,10 +149,19 @@ object ComponentCodegen {
             .primaryConstructor(FunSpec.constructorBuilder().addModifiers(KModifier.INTERNAL).build())
             .superclass(ELEMENT_NODE).addSuperclassConstructorParameter("%T.definition", model.generatedName)
         builder.addFunction(FunSpec.builder("slot").addModifiers(KModifier.OVERRIDE)
-            .addParameter("name", STRING).addParameter("renderFun", RENDER_FUN).returns(model.nodeName)
+            .addParameter("name", STRING).addParameter("renderFun", SLOT_CONTENT.parameterizedBy(SLOT_SCOPE)).returns(model.nodeName)
             .apply {
                 if (declarationsOnly) addStatement("error(%S)", "IDE declaration only")
                 else { addStatement("super.slot(name, renderFun)"); addStatement("return this") }
+            }.build())
+        val slotType = TypeVariableName("S", SLOT_SCOPE)
+        builder.addFunction(FunSpec.builder("slot").addModifiers(KModifier.OVERRIDE).addTypeVariable(slotType)
+            .addParameter("name", STRING)
+            .addParameter("factory", LambdaTypeName.get(parameters = listOf(ParameterSpec.unnamed(ANY.copy(nullable = true))), returnType = slotType))
+            .addParameter("content", SLOT_CONTENT.parameterizedBy(slotType)).returns(model.nodeName)
+            .apply {
+                if (declarationsOnly) addStatement("error(%S)", "IDE declaration only")
+                else { addStatement("super.slot(name, factory, content)"); addStatement("return this") }
             }.build())
         for (event in model.events) {
             val function = FunSpec.builder(event.parameterName).returns(model.nodeName)
@@ -185,16 +195,36 @@ object ComponentCodegen {
             .primaryConstructor(FunSpec.constructorBuilder().addModifiers(KModifier.INTERNAL)
                 .addParameter("scope", COMPONENT_CONTENT_SCOPE).build())
             .addProperty(PropertySpec.builder("scope", COMPONENT_CONTENT_SCOPE, KModifier.PRIVATE).initializer("scope").build())
+        val scopeTypes = TypeSpec.objectBuilder(model.slotScopesName).addModifiers(model.visibility)
         model.slotMembers.forEach { (wire, member) ->
+            val contract = model.scopedSlots.singleOrNull { it.name == wire }
+            val receiver = if (contract == null) SLOT_SCOPE else model.slotScopeName(wire)
+            if (contract != null) {
+                val type = TypeSpec.classBuilder(receiver).addModifiers(model.visibility)
+                    .primaryConstructor(FunSpec.constructorBuilder().addModifiers(KModifier.INTERNAL)
+                        .addParameter("props", ANY.copy(nullable = true)).build())
+                    .superclass(SLOT_SCOPE).addSuperclassConstructorParameter("props")
+                val names = slotPropertyNames(contract.properties)
+                contract.properties.forEach { property ->
+                    type.addProperty(PropertySpec.builder(names.getValue(property.name), property.type)
+                        .getter(FunSpec.getterBuilder().apply {
+                            if (declarationsOnly) addStatement("error(%S)", "IDE declaration only")
+                            else if (property.type == Dynamic) addStatement("return slotProps[%S]", property.wireName)
+                            else addStatement("return slotProp(%S)", property.wireName)
+                        }.build()).build())
+                }
+                scopeTypes.addType(type.build())
+            }
             slots.addFunction(FunSpec.builder(member)
                 .addAnnotation(AnnotationSpec.builder(SLOT_DECLARATION).addMember("name = %S", wire).build())
-                .addParameter("content", RENDER_FUN)
+                .addParameter("content", SLOT_CONTENT.parameterizedBy(receiver))
                 .apply {
                     if (declarationsOnly) addStatement("error(%S)", "IDE declaration only")
-                    else addStatement("scope.slot(%S, content)", wire)
+                    else if (contract == null) addStatement("scope.slot(%S, content)", wire)
+                    else addStatement("scope.slot(%S, { %T(it) }, content)", wire, receiver)
                 }.build())
         }
-        return listOf(scope, slots.build())
+        return listOf(scope, slots.build()) + if (model.scopedSlots.isEmpty()) emptyList() else listOf(scopeTypes.build())
     }
 
     private fun instanceType(model: ComponentModel, declarationsOnly: Boolean): TypeSpec {
@@ -338,7 +368,8 @@ private val JSO = MemberName("kvue.fun", "jso")
 private val DEFINE_EXPOSED_PROPERTY = MemberName("kvue", "defineExposedProperty")
 private val OPTIONAL_PROP = ClassName("kvue", "OptionalProp")
 private val RENDER_GROUP = ClassName("kvue.vdom", "RenderGroup")
-private val RENDER_FUN = ClassName("kvue.vdom", "RenderFun")
+private val SLOT_CONTENT = ClassName("kvue.vdom", "SlotContent")
+private val SLOT_SCOPE = ClassName("kvue.vdom", "SlotScope")
 private val STRING = ClassName("kotlin", "String")
 private val COMPONENT_CONTENT = ClassName("kvue.vdom", "ComponentContent")
 private val COMPONENT_CONTENT_SCOPE = ClassName("kvue.vdom", "ComponentContentScope")

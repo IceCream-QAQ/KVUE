@@ -15,18 +15,33 @@ before(() => { report = analyze(configuration, nodeModules, configDirectory); })
 const component = name => report.components.find(value => value.name === name);
 
 test('extracts named slots from intersected component constructors and emits their schema', () => {
-  assert.deepEqual(component('ForeignCounter').slots, ['default', 'header']);
+  assert.deepEqual(component('ForeignCounter').slots, ['default', 'header', 'item']);
   const directory = fs.mkdtempSync(path.join(require('node:os').tmpdir(), 'kvue-slot-schema-'));
   try {
     generate(configuration, nodeModules, directory, configDirectory);
     const schema = fs.readFileSync(path.join(directory, 'kotlin/kvue/importer/fixtures/foreign/ForeignCounter.kt'), 'utf8');
-    assert.ok(schema.includes('@SlotNames("default", "header")'));
+    assert.ok(schema.includes('@SlotNames("default", "header", "item")'));
+    assert.ok(schema.includes('@Slot("item")'));
+    assert.ok(schema.includes('val index: Double'));
+    assert.ok(schema.includes('val selected: Boolean?'));
     assert.ok(!schema.includes('@SlotNames("$stable"'));
   } finally {
     assert.equal(path.dirname(path.resolve(directory)), path.resolve(require('node:os').tmpdir()));
     assert.ok(path.basename(directory).startsWith('kvue-slot-schema-'));
     fs.rmSync(directory, { recursive: true, force: true });
   }
+});
+
+test('slot receivers preserve primitive, optional and callback fields with dynamic JS object fallback', () => {
+  const slots = component('ForeignCounter').scopedSlots;
+  assert.deepEqual(slots.find(slot => slot.name === 'default').properties, [
+    { name: 'count', memberName: 'count', kotlin: 'Double' },
+  ]);
+  const fields = slots.find(slot => slot.name === 'item').properties;
+  assert.equal(fields.find(field => field.name === 'row').kotlin, 'dynamic');
+  assert.equal(fields.find(field => field.name === 'format').kotlin, '(String) -> String');
+  assert.equal(fields.find(field => field.name === 'data-id').memberName, 'dataId');
+  assert.equal(slots.some(slot => slot.name === 'header'), false);
 });
 
 test('extracts exposed instance methods from declarations and source without inventing functional instances', () => {
@@ -40,6 +55,27 @@ test('extracts exposed instance methods from declarations and source without inv
   assert.deepEqual(component('SourceArray').methods.map(method => method.name), ['labelWith']);
   assert.deepEqual(component('SourceFunctional').methods, []);
   assert.deepEqual(component('ForeignFunctional').methods, []);
+});
+
+test('generic Element Plus SFC declarations expose their real scoped slot props', () => {
+  assert.equal(component('ElTable').kind, 'stateful');
+  const column = component('ElTableColumn');
+  assert.equal(column.kind, 'stateful');
+  assert.deepEqual(column.slots, ['default', 'expand', 'filter-icon', 'header']);
+  assert.deepEqual(column.scopedSlots.find(slot => slot.name === 'default').properties, [
+    { name: '$index', memberName: 'index', kotlin: 'Double' },
+    { name: 'column', memberName: 'column', kotlin: 'dynamic' },
+    { name: 'row', memberName: 'row', kotlin: 'dynamic' },
+  ]);
+});
+
+test('JavaScript functional component JSDoc supplies typed slot receiver fields', () => {
+  assert.deepEqual(component('SourceFunctional').scopedSlots, [{
+    name: 'item', properties: [
+      { name: 'count', memberName: 'count', kotlin: 'Double?' },
+      { name: 'label', memberName: 'label', kotlin: 'String' },
+    ],
+  }]);
 });
 
 test('source exposure respects closed APIs and reports conditional or unknown interfaces', () => {
@@ -110,7 +146,7 @@ test('navigation coordinates use UTF-16 columns and survive CRLF line endings', 
 });
 
 test('discovers named, default, CommonJS, functional and plain options components', () => {
-  assert.deepEqual(report.components.filter(value => value.analysis === 'declaration').map(value => value.name).sort(), ['ElButton', 'ElInput', 'ForeignCommonJs', 'ForeignCounter', 'ForeignDefault', 'ForeignFunctional', 'ForeignOptions']);
+  assert.deepEqual(report.components.filter(value => value.analysis === 'declaration').map(value => value.name).sort(), ['ElButton', 'ElInput', 'ElTable', 'ElTableColumn', 'ForeignCommonJs', 'ForeignCounter', 'ForeignDefault', 'ForeignFunctional', 'ForeignOptions']);
   assert.equal(component('ForeignFunctional').kind, 'functional');
   assert.equal(component('ForeignOptions').kind, 'options');
   assert.ok(report.skipped.some(value => value.exportName === 'installer'));

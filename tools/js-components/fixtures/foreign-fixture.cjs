@@ -24,8 +24,14 @@ exports.ForeignCounter = {
             h('span', { 'data-note': '' }, String(props.note)),
             h('span', { 'data-content': '' }, props.content),
             props.format ? h('span', { 'data-format': '' }, props.format(count.value, props.label)) : null,
-            slots.default?.(),
+            slots.default?.({ count: count.value }),
             slots.header?.(),
+            ...[0, 1].map(index => slots.item?.({
+                row: { name: props.label + '-' + count.value }, index,
+                ...(index ? { selected: true } : {}),
+                'data-id': 'row-' + index, slotProps: 'collision',
+                format: value => value.toUpperCase(),
+            })),
         ]);
     },
 };

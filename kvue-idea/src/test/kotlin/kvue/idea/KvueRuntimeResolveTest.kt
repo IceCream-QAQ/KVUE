@@ -163,6 +163,87 @@ class KvueRuntimeResolveTest : LightJavaCodeInsightFixtureTestCase() {
         assertTrue(descriptions.toString(), descriptions.any { it.contains("Declare slots directly") })
     }
 
+    fun testScopedReceiverTypesCompletionAndErrorsFromRealKlibs() {
+        myFixture.addFileToProject("demo/Rows.kt", """
+            package demo
+            import kvue.Component
+            import kvue.annotation.*
+            import kvue.vdom.RenderFun
+            data class Row(val name: String)
+            interface Fields<T> { val row: T }
+            @VueComponent class Rows : Component() {
+                @Slot("item") interface Item : Fields<Row> {
+                    val index: Int
+                    val note: String?
+                    @SlotProp("slotProps") val collision: String
+                }
+                override val body = RenderFun {}
+            }
+        """.trimIndent())
+        myFixture.configureByText("ScopedUsage.kt", """
+            package demo
+            import kvue.vdom.RenderFun
+            import kvui.*
+            val content = RenderFun {
+                Rows {
+                    slots.item {
+                        val label: String = this.row.name
+                        val position: Int = index
+                        val optional: String? = note
+                        text(collision)
+                        div { text(label + position + optional) }
+                    }
+                    slot("unknown") { text(slotProps.extra as String) }
+                }
+            }
+        """.trimIndent())
+        publishNativeComponents()
+        assertEmpty(myFixture.doHighlighting(HighlightSeverity.ERROR))
+        myFixture.configureByText("ScopedCompletion.kt", """
+            package demo
+            import kvue.vdom.RenderFun
+            val completionContent = RenderFun { Rows { slots.item { this.<caret> } } }
+        """.trimIndent())
+        val names = myFixture.completeBasic().map { it.lookupString }
+        assertTrue(names.toString(), names.containsAll(listOf("row", "index", "note", "slotProps")))
+        myFixture.configureByText("ScopedErrors.kt", """
+            package demo
+            import kvue.vdom.RenderFun
+            val invalidContent = RenderFun { Rows { slots.item { val wrong: String = index } } }
+        """.trimIndent())
+        val errors = myFixture.doHighlighting(HighlightSeverity.ERROR).map { it.description.orEmpty() }
+        assertEquals(errors.toString(), 1, errors.size)
+        assertTrue(errors.toString(), errors.single().contains("type mismatch", ignoreCase = true))
+    }
+
+    fun testImportedScopedReceiversUseTypesFromTheImporterReport() {
+        val caller = myFixture.configureByText("ImportedSlot.kt", """
+            import widgets.Rows
+            import kvue.vdom.RenderFun
+            import kvui.text
+            val content = RenderFun { Rows { slots.default {
+                val number: Double = index
+                val selectedOrMissing: Boolean? = selected
+                text((row.name as String) + number + selectedOrMissing)
+            } } }
+        """.trimIndent()) as KtFile
+        val report = JsonParser.parseString("""
+            {"schemaVersion":2,"components":[{"package":"widgets","name":"Rows","module":"widgets","exportName":"Rows",
+              "props":[],"events":[],"slots":["default"],"scopedSlots":[{"name":"default","properties":[
+                {"name":"row","memberName":"row","kotlin":"dynamic"},{"name":"index","memberName":"index","kotlin":"Double"},
+                {"name":"selected","memberName":"selected","kotlin":"Boolean?"}]}]}],
+              "schemas":[{"package":"widgets","name":"Rows","text":"package widgets\ninterface Rows"}]}
+        """.trimIndent()).asJsonObject
+        val root = Path.of(caller.virtualFile.parent.path)
+        val imports = ExternalSnapshot(listOf(ExternalLibrary(root.resolve("kvue.components.json"), listOf(root), ExternalComponents.parse(report))))
+        PsiDocumentManager.getInstance(project).commitAllDocuments()
+        val service = project.service<KvueProjectService>()
+        val scan = allowAnalysisOnEdt { ReadAction.compute<KvueProjectService.Scan, RuntimeException> { service.scan(imports) } }
+        assertEmpty(scan.diagnostics)
+        WriteAction.run<RuntimeException> { service.publish(scan) }
+        assertEmpty(myFixture.doHighlighting(HighlightSeverity.ERROR))
+    }
+
     fun testSlotDeclarationsNestedInElementsAreNotComponentOutlets() {
         myFixture.addFileToProject("demo/Panel.kt", """
             package demo

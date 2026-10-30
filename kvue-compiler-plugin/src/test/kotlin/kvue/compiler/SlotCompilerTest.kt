@@ -97,6 +97,23 @@ class SlotCompilerTest {
         assertTrue(helper.messages.contains("Declare slots directly"), helper.messages)
     }
 
+    @Test fun typedSlotReceiversSurviveExtractionAndNestedComponentCopies() {
+        val result = compile("""
+            fun runTest(): String {
+                val node = Panel {
+                    slots.item { text(this.label); Panel { slots.item { text(label) } }.also { check(it.render("item", mapOf("label" to "nested")) == listOf("nested")) } }
+                    text("ordinary")
+                }
+                check(node.render("item", mapOf("label" to "first")) == listOf("first"))
+                check(node.render("item", mapOf("label" to "second")) == listOf("second"))
+                check(node.render("default") == listOf("ordinary"))
+                return "OK"
+            }
+        """)
+        assertEquals(ExitCode.OK, result.exit, result.messages)
+        assertEquals("OK", result.run())
+    }
+
     private data class Result(val exit: ExitCode, val messages: String, val output: File) {
         fun run(): Any? = URLClassLoader(arrayOf(output.toURI().toURL()), SlotCompilerTest::class.java.classLoader).use {
             it.loadClass("SampleKt").getMethod("runTest").invoke(null)
@@ -114,7 +131,12 @@ class SlotCompilerTest {
                 fun addElement(value: String) { values += value }
                 internal fun result(): List<String> = values
             }
-            fun interface RenderFun { operator fun RenderGroup.invoke() }
+            open class SlotScope(val slotProps: Any?) : RenderGroup()
+            fun interface SlotContent<in S : SlotScope> { operator fun S.invoke() }
+            fun interface RenderFun : SlotContent<SlotScope> {
+                operator fun RenderGroup.invoke()
+                override fun SlotScope.invoke() { (this as RenderGroup).invoke() }
+            }
             fun evaluate(block: RenderFun): List<String> {
                 val group = RenderGroup()
                 with(block) { group.invoke() }
@@ -125,11 +147,16 @@ class SlotCompilerTest {
             package kvue.vdom.knode
             import kvue.vdom.*
             class ElementNode {
-                val slots = linkedMapOf<String, MutableList<RenderFun>>()
-                fun slot(name: String, content: RenderFun): ElementNode = apply {
-                    slots.getOrPut(name) { mutableListOf() }.add(content)
+                val slots = linkedMapOf<String, MutableList<(Any?) -> List<String>>>()
+                fun slot(name: String, content: SlotContent<SlotScope>): ElementNode = slot(name, ::SlotScope, content)
+                fun <S : SlotScope> slot(name: String, factory: (Any?) -> S, content: SlotContent<S>): ElementNode = apply {
+                    slots.getOrPut(name) { mutableListOf() }.add { props ->
+                        val scope = factory(props)
+                        with(content) { scope.invoke() }
+                        scope.result()
+                    }
                 }
-                fun render(name: String): List<String> = slots[name].orEmpty().flatMap(::evaluate)
+                fun render(name: String, props: Any? = null): List<String> = slots[name].orEmpty().flatMap { it(props) }
             }
         """.trimIndent()) }
         val sample = directory.resolve("Sample.kt").apply { writeText("""
@@ -137,9 +164,11 @@ class SlotCompilerTest {
             import kvue.vdom.*
             import kvue.vdom.knode.ElementNode
             class PanelContent : ComponentContentScope() { val slots = PanelSlots(this) }
+            class ItemScope(props: Any?) : SlotScope(props) { val label: String get() = (slotProps as Map<*, *>)["label"] as String }
             class PanelSlots(private val scope: ComponentContentScope) {
-                @SlotDeclaration("header") fun header(content: RenderFun) = scope.slot("header", content)
-                @SlotDeclaration("footer") fun footer(content: RenderFun) = scope.slot("footer", content)
+                @SlotDeclaration("header") fun header(content: SlotContent<SlotScope>) = scope.slot("header", content)
+                @SlotDeclaration("footer") fun footer(content: SlotContent<SlotScope>) = scope.slot("footer", content)
+                @SlotDeclaration("item") fun item(content: SlotContent<ItemScope>) = scope.slot("item", ::ItemScope, content)
             }
             fun Panel(content: ComponentContent<PanelContent>? = null): ElementNode = ElementNode().also {
                 bindComponentContent(it, content, ::PanelContent)

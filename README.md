@@ -13,6 +13,7 @@ KVUE 以 Kotlin 类声明组件，通过 KSP 生成可复用的 Vue 组件定义
 - **双向绑定**：通过 `vModel` 或 `bindXxx` 直接绑定可写变量，由编译器检查并展开读写操作。
 - **链式配置**：组件专属节点提供带类型的事件方法，并可与 `.css {}`、`.style {}` 混合使用。
 - **访问实例**：通过 `XxxVue.ref()` 获取组件公开接口，调用 Kotlin 或第三方组件导出的方法。
+- **作用域插槽**：通过 `slots.item { ... }` 的接收者直接访问插槽参数，支持 Kotlin 声明和第三方组件类型导入。
 - **标准元素**：独立的 KVUI 模块提供 `div`、`input`、`button` 等标准 HTML 元素封装。
 - **第三方组件导入**：优先读取 TypeScript 声明，也支持静态分析 JavaScript 与 JSDoc，批量生成 Kotlin 接口。
 - **编辑器支持**：可选的 IDEA 插件在首次构建前提供组件解析、补全、错误提示和来源跳转。
@@ -249,7 +250,7 @@ override val body = RenderFun {
 
 组件内容块中的普通内容组成默认插槽，具名插槽可以直接写为 `slot("header") { ... }`。声明了名称的组件还提供 `slots.header { ... }`，与 `kvui.header` 等 HTML 函数区分。原生组件使用 `@SlotNames` 声明名称，第三方组件从 TypeScript 声明中读取。各插槽仍按需执行。
 
-原有 `节点.slot("header") { ... }` 也可使用，并能继续链式配置。内嵌声明的位置、局部变量规则和复用方式见 [插槽说明](docs/slots.md)。当前插槽回调尚不接收作用域参数。
+原有 `节点.slot("header") { ... }` 也可使用，并能继续链式配置。作用域插槽通过 `slots.item { text(row.name) }` 的接收者读取参数，原生组件用嵌套的 `@Slot("item") interface` 声明字段；第三方组件从 TS／JSDoc 读取。显式 `slot("item")` 可通过 `slotProps` 读取原始参数。内嵌声明的位置、类型边界和复用方式见 [插槽说明](docs/slots.md)。
 
 KVUE 保持稳定的片段根结构，并将透传属性合并到唯一的元素或组件根节点；多根组件需要明确选择属性的落点。
 原生标签、表单绑定和属性边界见 [KVUI 使用说明](kvui/README.md)。

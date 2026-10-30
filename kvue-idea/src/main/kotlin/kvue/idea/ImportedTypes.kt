@@ -1,6 +1,7 @@
 package kvue.idea
 
 import com.squareup.kotlinpoet.ClassName
+import com.squareup.kotlinpoet.Dynamic
 import com.squareup.kotlinpoet.LambdaTypeName
 import com.squareup.kotlinpoet.ParameterSpec
 import com.squareup.kotlinpoet.ParameterizedTypeName.Companion.parameterizedBy
@@ -10,6 +11,7 @@ import com.squareup.kotlinpoet.TypeName
 internal fun importedType(text: String): TypeName {
     val type = text.trim()
     require(type.isNotEmpty()) { "Empty importer type" }
+    if (type == "dynamic") return Dynamic
     val arrow = topLevelPositions(type).firstOrNull { index -> type.startsWith("->", index) }
     if (arrow != null) {
         val arguments = type.substring(0, arrow).trim()

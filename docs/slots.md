@@ -56,6 +56,87 @@ class AComponent : Component() {
 
 第三方组件从 TypeScript 的 `$slots` 声明读取名称，并由 KSP 和 IDEA 生成相同的成员。读取不到名称时仍可使用显式写法。非普通标识符会转换为 Kotlin 成员名，例如 `empty-state` 对应 `slots.emptyState`；转换重名时添加 `Slot` 后缀。
 
+## 作用域插槽
+
+插槽参数挂在 lambda 的接收者上，可以直接访问字段或写 `this.字段`。接收者继承 `RenderGroup`，因此仍可调用 `text()`、`div()` 和组件函数：
+
+```kotlin
+ElTableColumn(label = "名字") {
+    slots.default {
+        text(this.row.name as String)
+        text(index.toInt().toString())
+    }
+}
+```
+
+这里 `row`、`column` 来自 Element Plus 的插槽参数；原始 `$index` 转换为 Kotlin 成员 `index`，类型为 `Double`。IDEA 在首次构建前提供相同的字段补全和类型检查。第三方声明中的结构对象、未知类型和未绑定泛型保留为 `dynamic`，例如此处的 `row`；这部分字段访问没有静态类型保证。数字、字符串、布尔值、可选字段和可表达的函数签名保留类型。不会推断 `ElTable(data = ...)` 的数据类型来替换第三方泛型。
+
+进入嵌套的 DOM 或组件 lambda 后，`this` 按 Kotlin DSL 规则切换到新的渲染作用域。可先保存字段，或显式引用外层接收者：
+
+```kotlin
+ElTableColumn {
+    slots.default {
+        val item = row
+        div { text(item.name as String) }
+        span { text(this@default.index.toInt().toString()) }
+    }
+}
+```
+
+默认作用域插槽使用 `slots.default { ... }`。组件块里的普通内容仍是无参数的隐式默认插槽，不能与显式默认插槽混用。
+
+### Kotlin 组件声明
+
+在组件中声明一个带 `@Slot` 的嵌套接口，其 `val` 属性就是该插槽的参数。接口只作为声明，不需要创建实例；普通 Kotlin 数据类型也可直接传递：
+
+```kotlin
+data class Row(val name: String)
+
+@VueComponent
+class RowView : Component() {
+    @Slot("item")
+    interface Item {
+        val row: Row
+        val index: Int
+        val note: String?
+    }
+
+    override val body = RenderFun {
+        slot("item", mapOf("row" to Row("Kotlin"), "index" to 0, "note" to null))
+    }
+}
+
+// 父组件的渲染块
+RowView {
+    slots.item {
+        text(row.name) // Row 类型，支持补全与检查
+        text(index.toString())
+    }
+}
+```
+
+`@Slot` 同时声明插槽名称，无需再加入 `@SlotNames`。支持从基类继承插槽声明，以及接口属性继承中的具体泛型替换。声明接口本身不能有未绑定的类型参数，属性必须是可访问的 `val`；`@SlotProp("原始名称")` 可指定 JS 字段名。与接收者自身 API 冲突的字段会追加 `Prop`，例如原始 `slotProps` 字段生成 `slotPropsProp`。
+
+出口仍接受 `Map<String, Any?>`，组件作者需要保证传出的名称和类型符合接口；接口不会自动验证运行时 JS 数据。
+
+### 未知插槽与原始参数
+
+显式 `slot("name")` 和节点上的 `.slot("name")` 提供通用 `SlotScope`。通过 `slotProps` 访问原始 JS 对象，或用 `slotProp<T>("name")` 明确指定类型：
+
+```kotlin
+AComponent {
+    slot("item") {
+        text(slotProps.row.name as String)
+        val index = slotProp<Int>("index")
+        text(index.toString())
+    }
+}
+```
+
+每次子组件调用插槽都会创建独立的接收者，同名插槽多次调用、循环渲染和响应式更新不会复用上一次参数。原有 `RenderFun` 可以继续直接传给插槽，无需适配。不要在调用结束后继续向这个接收者添加节点。
+
+第三方类型读取支持 `$slots`、函数组件的上下文，以及 Vue 声明生成器的泛型 SFC `__ctx.slots`。JavaScript 的 JSDoc 若提供相应签名也可读取；没有声明的动态 JS 插槽只能使用原始参数入口，不执行源码推测字段。
+
 ## 延迟执行与声明位置
 
 内嵌插槽依赖 KVUE 编译器插件。编译器将顶层具名插槽声明与默认内容分开：建立组件节点时登记插槽，其渲染代码仍在子组件调用相应插槽时才执行。普通语句和局部变量留在默认插槽中；子组件没有调用默认插槽时，这些语句也不会执行。
@@ -110,4 +191,4 @@ AComponent(content = reusable.asComponentContent())
 
 更新这一功能时，运行库、KSP、编译器插件和 IDEA 插件需要同步更新，并重新生成旧组件接口。
 
-插槽回调目前仍不接收作用域参数；原生 Kotlin 插槽出口的兜底内容也仍需要另行扩展。
+原生 Kotlin 插槽出口的兜底内容仍需要另行扩展。

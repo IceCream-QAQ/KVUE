@@ -33,7 +33,7 @@
     {
       "module": "element-plus",
       "package": "kvue.importer.fixtures.elementplus",
-      "exports": ["ElButton", "ElInput"]
+      "exports": ["ElButton", "ElInput", "ElTable", "ElTableColumn"]
     }
   ]
 }

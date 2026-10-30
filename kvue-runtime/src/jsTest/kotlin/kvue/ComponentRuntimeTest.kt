@@ -247,7 +247,7 @@ class ComponentRuntimeTest {
     }
 }
 
-private fun withMounted(
+internal fun withMounted(
     definition: ComponentDefinition<*>,
     assertions: (dynamic) -> Promise<Unit>,
 ): Promise<Unit> {

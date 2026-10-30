@@ -23,15 +23,30 @@ class ComponentCodegenTest {
             val scopes = types.getValue("PanelVue").typeSpecs.associateBy { it.name }
             assertEquals(ClassName("kvue.vdom", "ComponentContentScope"), scopes.getValue("Content").superclass)
             val slots = scopes.getValue("Slots").funSpecs.associateBy { it.name }
-            assertEquals(ClassName("kvue.vdom", "RenderFun"), slots.getValue("header").parameters.single().type)
-            assertEquals(ClassName("kvue.vdom", "RenderFun"), slots.getValue("footer").parameters.single().type)
-            assertEquals(model.nodeName, types.getValue("PanelNode").funSpecs.single { it.name == "slot" }.returnType)
+            val contentType = ClassName("kvue.vdom", "SlotContent").parameterizedBy(ClassName("kvue.vdom", "SlotScope"))
+            assertEquals(contentType, slots.getValue("header").parameters.single().type)
+            assertEquals(contentType, slots.getValue("footer").parameters.single().type)
+            types.getValue("PanelNode").funSpecs.filter { it.name == "slot" }.forEach { assertEquals(model.nodeName, it.returnType) }
             val content = file.members.filterIsInstance<FunSpec>().single().parameters.single { it.name == "content" }
             assertEquals(ClassName("kvue.vdom", "ComponentContent").parameterizedBy(model.contentName).copy(nullable = true), content.type)
         }
         assertEquals(4, model.slotMembers.values.toSet().size)
         assertEquals(setOf("PanelVue", "PanelNode", "PanelInstance"),
             model.generatedClassNames.map { it.simpleName }.toSet())
+    }
+
+    @Test fun scopedSlotPropertiesHaveMatchingEditorTypesAndAvoidReceiverCollisions() {
+        val collisions = listOf(SlotPropertyModel("slotProps", "slotProps", INT), SlotPropertyModel("slotPropsProp", "slot-props-prop", STRING))
+        assertEquals(slotPropertyNames(collisions), slotPropertyNames(collisions.reversed()))
+        val model = ComponentModel(ClassName("sample", "Rows"), emptyList(), emptyList(), scopedSlots = listOf(
+            SlotModel("default", listOf(SlotPropertyModel("row", "row", STRING), SlotPropertyModel("slotProps", "slotProps", INT))),
+        ))
+        for (editor in listOf(false, true)) {
+            val generated = ComponentCodegen.generate(model, editor).single().toString()
+            assertTrue(generated.contains("SlotContent<SlotScopes.default>"), generated)
+            assertTrue(generated.contains("val row: String"), generated)
+            assertTrue(generated.contains("val slotPropsProp: Int"), generated)
+        }
     }
 
     private val model = ComponentModel(

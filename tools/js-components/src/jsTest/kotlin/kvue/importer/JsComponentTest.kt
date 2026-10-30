@@ -72,6 +72,8 @@ class JsComponentTest {
             assertEquals("a prop named content", text("[data-content]"))
             assertEquals("default slot", text("[data-foreign-slot]"))
             assertEquals("named slot", text("[data-foreign-header]"))
+            assertEquals("left-2:0:null:row-0:collision:OK", text("[data-foreign-row='0']"))
+            assertEquals("left-2:1:true:row-1:collision:OK", text("[data-foreign-row='1']"))
             assertEquals("functional", text("[data-functional]"))
             assertEquals("esm-default", text("[data-default]"))
             assertEquals("commonjs-default", text("[data-commonjs]"))
@@ -84,10 +86,12 @@ class JsComponentTest {
                 assertEquals("3:left:null", text("[data-foreign-bulk]"))
                 assertEquals("format:2:left", text("[data-format]"))
                 assertEquals("3", text("[data-foreign-accepted]"))
+                assertEquals("left-3:0:null:row-0:collision:OK", text("[data-foreign-row='0']"))
                 host.querySelector("[data-action='rename']").click()
                 nextTick()
             }.then {
                 assertEquals("renamed:3", text("[data-foreign='renamed'] button"))
+                assertEquals("renamed-3:1:true:row-1:collision:OK", text("[data-foreign-row='1']"))
                 assertEquals("right:7", text("[data-foreign='right'] button"))
                 host.querySelector("[data-foreign='renamed'] button").click()
                 nextTick()
@@ -107,12 +111,19 @@ class JsComponentTest {
             instance.blur()
             assertTrue(document.activeElement !== input)
             assertEquals("seed", input.value as String)
-            button.click()
-            input.value = "typed through Element Plus"
-            input.dispatchEvent(js("new Event('input', { bubbles: true })"))
-            nextTick().then {
+            // ElTable's async mounted hook awaits one tick before updating its column store.
+            // Wait for the subsequent cell render as well.
+            nextTick().then { nextTick() }.then {
+                assertTrue(host.querySelector("[data-table-cell]") != null, host.innerHTML as String)
+                assertEquals("0:seed", host.querySelector("[data-table-cell]").textContent as String)
+                button.click()
+                input.value = "typed through Element Plus"
+                input.dispatchEvent(js("new Event('input', { bubbles: true })"))
+                nextTick()
+            }.then {
                 assertEquals("1", host.querySelector("[data-el-count]").textContent as String)
                 assertEquals("typed through Element Plus", host.querySelector("[data-el-value]").textContent as String)
+                assertEquals("0:typed through Element Plus", host.querySelector("[data-table-cell]").textContent as String)
                 host.querySelector("[data-action='disable']").click()
                 nextTick()
             }.then {

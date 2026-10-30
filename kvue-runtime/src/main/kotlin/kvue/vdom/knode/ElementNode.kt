@@ -2,8 +2,9 @@ package kvue.vdom.knode
 
 import kvue.VueComponentType
 import kvue.`fun`.toJavaScriptObject
-import kvue.vdom.RenderFun
-import kvue.vdom.buildVNodes
+import kvue.vdom.SlotContent
+import kvue.vdom.SlotScope
+import kvue.vdom.buildSlotVNodes
 import vue.VNode
 import vue.Directive
 import vue.createVNode
@@ -14,7 +15,7 @@ open class ElementNode(
 ) : KNode {
 
     private val properties = linkedMapOf<String, Any?>()
-    private val children = linkedMapOf<String, MutableList<RenderFun>>()
+    private val children = linkedMapOf<String, MutableList<(Any?) -> Array<VNode>>>()
     private val directives = mutableListOf<Array<Any?>>()
 
     fun property(name: String, value: Any?) {
@@ -42,8 +43,10 @@ open class ElementNode(
         properties["ref"] = target.callback
     }
 
-    open fun slot(name: String, renderFun: RenderFun): ElementNode {
-        children.getOrPut(name) { mutableListOf() }.add(renderFun)
+    open fun slot(name: String, renderFun: SlotContent<SlotScope>): ElementNode = slot(name, ::SlotScope, renderFun)
+
+    open fun <S : SlotScope> slot(name: String, factory: (Any?) -> S, content: SlotContent<S>): ElementNode {
+        children.getOrPut(name) { mutableListOf() }.add { props -> content.buildSlotVNodes(props, factory) }
         return this
     }
 
@@ -60,14 +63,14 @@ open class ElementNode(
     override fun buildVNode(): VNode {
         val vueChildren: dynamic = if (type is String) {
             check(children.keys.all { it == "default" }) { "HTML elements only have a default slot." }
-            children["default"]?.flatMap { it.buildVNodes().asList() }?.toTypedArray()
+            children["default"]?.flatMap { it(null).asList() }?.toTypedArray()
         } else if (children.isEmpty()) {
             // Vue force-updates a component whenever render-function children are present, even an
             // empty slot object. Without slots, unchanged props let a parent render skip the child.
             null
         } else {
             children.mapValues { (_, blocks) ->
-                { blocks.flatMap { it.buildVNodes().asList() }.toTypedArray() }
+                { props: Any? -> blocks.flatMap { it(props).asList() }.toTypedArray() }
             }.toJavaScriptObject()
         }
         val vnode = createVNode(

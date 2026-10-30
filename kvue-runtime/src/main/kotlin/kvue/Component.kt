@@ -7,6 +7,8 @@ import kvue.reactive.RefValue
 import kvue.reactive.ReadonlyRef
 import kvue.vdom.RenderFun
 import kvue.vdom.RenderGroup
+import kvue.vdom.SlotContent
+import kvue.vdom.SlotScope
 import vue.VNode
 
 abstract class Component {
@@ -48,7 +50,7 @@ abstract class Component {
             "component's content block. Call slot(name) without a block to render this component's own slot.",
         level = DeprecationLevel.ERROR,
     )
-    protected fun RenderGroup.slot(name: String, content: RenderFun): Unit =
+    protected fun RenderGroup.slot(name: String, content: SlotContent<SlotScope>): Unit =
         error("Slot '$name' must be declared directly in component content.")
 }
 

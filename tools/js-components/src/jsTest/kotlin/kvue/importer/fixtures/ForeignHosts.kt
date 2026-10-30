@@ -9,6 +9,9 @@ import kvue.importer.fixtures.elementplus.ElButton
 import kvue.importer.fixtures.elementplus.ElInput
 import kvue.importer.fixtures.elementplus.ElInputVue
 import kvue.importer.fixtures.elementplus.ElInputInstance
+import kvue.importer.fixtures.elementplus.ElTable
+import kvue.importer.fixtures.elementplus.ElTableColumn
+import kvue.`fun`.jso
 import kvue.importer.fixtures.foreign.ForeignCounterVue
 import kvue.importer.fixtures.foreign.ForeignCounterInstance
 import kvue.importer.fixtures.source.SourceCounterVue
@@ -59,6 +62,12 @@ internal class ForeignHost : Component() {
             key = "left",
         ) {
             slots.header { div { text("named slot") }.property("data-foreign-header", "") }
+            slots.item {
+                val value = row.name as String
+                val position = this.index.toInt()
+                val message = "$value:$position:$selected:$dataId:$slotPropsProp:" + format("ok")
+                div { text(message) }.property("data-foreign-row", position)
+            }
             div { text("default slot") }.property("data-foreign-slot", "")
         }
             .ref(child).onChange { value, _ -> ImportedRefProbe.events += "changed:$value" }
@@ -88,6 +97,15 @@ internal class ElementPlusHost : Component() {
         }.style { this["marginRight"] = "8px" }.onClick { clicks++ }
         ElInput(vModel = text, placeholder = "Type here").ref(input)
             .onUpdateModelValue { ImportedRefProbe.events += "model:$text" }
+        ElTable(data = arrayOf<Any>(jso("name" to text))) {
+            ElTableColumn(label = "Name") {
+                slots.default {
+                    val label = row.name as String
+                    val position = this.index.toInt()
+                    div { text("$position:$label") }.property("data-table-cell", "")
+                }
+            }
+        }
         button(onClick = { disabled = true }) { text("disable") }.property("data-action", "disable")
         div { text(text) }.property("data-el-value", "")
         div { text(clicks.toString()) }.property("data-el-count", "")

@@ -35,6 +35,16 @@ annotation class JsOptional
 @Retention(AnnotationRetention.BINARY)
 annotation class SlotNames(vararg val value: String)
 
+/** A nested interface declaring the props of one slot; no instance is constructed. */
+@Target(AnnotationTarget.CLASS)
+@Retention(AnnotationRetention.BINARY)
+annotation class Slot(val name: String)
+
+/** Original JS field name when the Kotlin slot property needs a different identifier. */
+@Target(AnnotationTarget.PROPERTY)
+@Retention(AnnotationRetention.BINARY)
+annotation class SlotProp(val name: String)
+
 /** Compiler/editor contract for inline slot declarations and generated slots.name functions. */
 @Target(AnnotationTarget.FUNCTION)
 @Retention(AnnotationRetention.BINARY)
