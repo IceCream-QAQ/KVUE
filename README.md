@@ -252,8 +252,10 @@ override val body = RenderFun {
 
 原有 `节点.slot("header") { ... }` 也可使用，并能继续链式配置。作用域插槽通过 `slots.item { text(row.name) }` 的接收者读取参数，原生组件用嵌套的 `@Slot("item") interface` 声明字段；第三方组件从 TS／JSDoc 读取。显式 `slot("item")` 可通过 `slotProps` 读取原始参数。内嵌声明的位置、类型边界和复用方式见 [插槽说明](docs/slots.md)。
 
-KVUE 保持稳定的片段根结构，并将透传属性合并到唯一的元素或组件根节点；多根组件需要明确选择属性的落点。
+KVUE 将单根直接交给 Vue，使组件指令和过渡动画作用于真实根元素；多根返回 Fragment，并需要明确选择属性的落点。根节点数量会变化且需要保留子组件状态时，使用显式 `Fragment { ... }` 分组。
 原生标签、表单绑定和属性边界见 [KVUI 使用说明](kvui/README.md)。
+
+`kvue.show` 提供链式 `v-show`，`directive<T> { ... }` 提供类型化自定义指令。`kvue.vdom` 包提供 `Transition`、`TransitionGroup`、`KeepAlive`、`Teleport`、`Suspense`、`Fragment` 和动态 `component(...)`；异步组件使用 `kvue.defineAsyncComponent`。具体用法与根结构迁移说明见 [指令与内置组件](docs/directives-and-builtins.md)。
 
 ## 导入第三方 Vue 组件
 

@@ -3,6 +3,7 @@ package kvue.fixtures
 import kvue.*
 import kvue.annotation.*
 import kvue.vdom.RenderFun
+import kvue.vdom.Fragment
 import kvue.vdom.knode.*
 
 internal object ChainProbe {
@@ -48,15 +49,17 @@ internal class ChainHost : Component() {
     private val visible by ChainProbe.visible
     private val revision by ChainProbe.revision
     override val body = RenderFun {
-        if (visible) {
-            ChainChild(vModel = model, key = "first", onChanged = { ChainProbe.log += "argument:$it:$revision" })
-                .onChanged { ChainProbe.log += "chain1:$it" }
-                .css { +"extra"; add("conditional", true) }
-                .style { this["color"] = "red" }
-                .onChanged { ChainProbe.log += "chain2:$it" }
-                .onUpdateModelValue { ChainProbe.log += "model:$model" }
-                .ref(child)
+        Fragment {
+            if (visible) {
+                ChainChild(vModel = model, key = "first", onChanged = { ChainProbe.log += "argument:$it:$revision" })
+                    .onChanged { ChainProbe.log += "chain1:$it" }
+                    .css { +"extra"; add("conditional", true) }
+                    .style { this["color"] = "red" }
+                    .onChanged { ChainProbe.log += "chain2:$it" }
+                    .onUpdateModelValue { ChainProbe.log += "model:$model" }
+                    .ref(child)
+            }
+            ChainChild(key = "second").ref(sibling)
         }
-        ChainChild(key = "second").ref(sibling)
     }
 }

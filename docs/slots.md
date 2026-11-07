@@ -191,4 +191,14 @@ AComponent(content = reusable.asComponentContent())
 
 更新这一功能时，运行库、KSP、编译器插件和 IDEA 插件需要同步更新，并重新生成旧组件接口。
 
-原生 Kotlin 插槽出口的兜底内容仍需要另行扩展。
+## 插槽出口的兜底内容
+
+在组件自己的 `body` 中，通过命名的 `fallback` 参数指定内容：
+
+```kotlin
+slot("header", fallback = RenderFun { text("默认标题") })
+slot("item", props = mapOf("row" to row), fallback = RenderFun { text("暂无内容") })
+```
+
+插槽未提供、返回空数组，或只返回注释及空 Fragment 时，才执行兜底内容；正常插槽会收到 `props`，并按 Vue 的依赖追踪规则更新。空文本节点仍视为有效内容。
+使用命名参数可与向子组件声明插槽的 `slot("header") { ... }` 区分，原有声明位置检查保持有效。

@@ -19,6 +19,8 @@ h1 { margin: 16px 0; font-size: clamp(28px, 4vw, 42px); letter-spacing: -.04em; 
 .greeting-row { display: flex; justify-content: space-between; align-items: center; gap: 24px; }
 h2 { margin: 0; font-size: 24px; letter-spacing: -.02em; }
 .greeting-row p { margin-bottom: 0; font-size: 14px; }
+.greeting-enter-active, .greeting-leave-active { transition: opacity .18s ease, transform .18s ease; }
+.greeting-enter-from, .greeting-leave-to { opacity: 0; transform: translateY(8px); }
 .footer { text-align: center; margin-top: 30px; color: #8391a6; font-size: 12px; }
 @media (max-width: 680px) {
   .playground { padding: 32px 18px; }

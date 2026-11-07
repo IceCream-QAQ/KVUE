@@ -9,6 +9,7 @@ import kvue.vdom.RenderFun
 import kvue.vdom.RenderGroup
 import kvue.vdom.SlotContent
 import kvue.vdom.SlotScope
+import kvue.vdom.buildVNodes
 import vue.VNode
 
 abstract class Component {
@@ -36,12 +37,16 @@ abstract class Component {
      * Invokes a Vue slot during this component's render, preserving lazy evaluation.
      * Props reach the slot function as one plain JS object, as with Vue's renderSlot.
      */
-    protected fun RenderGroup.slot(name: String = "default", props: Map<String, Any?> = emptyMap()) {
+    protected fun RenderGroup.slot(
+        name: String = "default",
+        props: Map<String, Any?> = emptyMap(),
+        fallback: RenderFun? = null,
+    ) {
         val slotFunction = instanceContext.setupContext.slots[name]
-        if (jsTypeOf(slotFunction) == "function") {
-            val nodes = slotFunction(props.toJavaScriptObject()).unsafeCast<Array<VNode>>()
-            nodes.forEach { addVNode(it) }
-        }
+        val nodes = if (jsTypeOf(slotFunction) == "function")
+            slotFunction(props.toJavaScriptObject()).unsafeCast<Array<VNode>>() else emptyArray()
+        if (fallback == null || nodes.any(::hasSlotContent)) nodes.forEach(::addVNode)
+        else fallback.buildVNodes().forEach(::addVNode)
     }
 
     /** Keeps a misplaced slot declaration from resolving to this component's own slot outlet. */
@@ -52,6 +57,16 @@ abstract class Component {
     )
     protected fun RenderGroup.slot(name: String, content: SlotContent<SlotScope>): Unit =
         error("Slot '$name' must be declared directly in component content.")
+}
+
+/** Like Vue's slot fallback check, comments and empty fragments do not count as content. */
+private fun hasSlotContent(node: VNode): Boolean = when (node.asDynamic().type) {
+    vue.Comment -> false
+    vue.Fragment -> {
+        val children: dynamic = node.asDynamic().children
+        children is Array<*> && children.unsafeCast<Array<VNode>>().any(::hasSlotContent)
+    }
+    else -> true
 }
 
 

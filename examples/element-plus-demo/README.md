@@ -27,6 +27,7 @@
 - 计数器进度使用 `by computed`，说明文字由 `watch(::count)` 更新，可同时观察委托读取、计算缓存和监听回调。
 - “聚焦输入框”通过 `ElInputVue.ref()` 调用 Element Plus 的 `focus()`；“调用子组件 greet”调用 Kotlin `@Expose` 方法。
 - 加一按钮演示 `.css {}.style {}.onClick {}`，子组件演示 `.ref(greeting).onReset {}`。
+- “显示与过渡”使用 `Transition(persisted = true)` 和 `.show(...)` 切换问候卡片，隐藏时保留组件状态与实例引用。
 - `kvue.components.json`：从 Element Plus 的 TypeScript 声明批量导入组件。
 
 `exposeGeneratedSources` 没有显式设置：IDEA 插件在同步和执行任务时注入默认关闭，普通终端默认为打开。

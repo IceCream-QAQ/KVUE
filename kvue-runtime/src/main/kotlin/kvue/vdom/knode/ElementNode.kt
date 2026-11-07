@@ -61,9 +61,12 @@ open class ElementNode(
     }
 
     override fun buildVNode(): VNode {
-        val vueChildren: dynamic = if (type is String) {
-            check(children.keys.all { it == "default" }) { "HTML elements only have a default slot." }
+        val nodeType = if (type is VueComponentType) type.vue else type
+        val arrayChildren = nodeType === vue.Fragment || nodeType === vue.Teleport
+        val vueChildren: dynamic = if (nodeType is String || arrayChildren) {
+            check(children.keys.all { it == "default" }) { "Elements, Fragment and Teleport only accept default content." }
             children["default"]?.flatMap { it(null).asList() }?.toTypedArray()
+                ?: if (arrayChildren) emptyArray<VNode>() else null
         } else if (children.isEmpty()) {
             // Vue force-updates a component whenever render-function children are present, even an
             // empty slot object. Without slots, unchanged props let a parent render skip the child.
@@ -74,7 +77,7 @@ open class ElementNode(
             }.toJavaScriptObject()
         }
         val vnode = createVNode(
-            if (type is VueComponentType) type.vue else type,
+            nodeType,
             properties.toJavaScriptObject(),
             vueChildren,
         )

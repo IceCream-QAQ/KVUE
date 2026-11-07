@@ -25,7 +25,7 @@ class GreetingCard : Component() {
     fun greet(value: String) { updateName(value) }
 
     override val body = RenderFun {
-        ElCard(header = "03 / Kotlin class 组件", shadow = "never") {
+        ElCard(header = "05 / Kotlin class 组件", shadow = "never") {
             div(className = "greeting-row") {
                 div {
                     h2 { text("你好，${name.ifBlank { "朋友" }}。") }
