@@ -5,6 +5,7 @@ import org.gradle.api.file.RegularFileProperty
 import org.gradle.api.provider.Property
 import org.gradle.api.provider.ProviderFactory
 import org.gradle.api.GradleException
+import java.util.Properties
 import javax.inject.Inject
 
 abstract class KvueExtension @Inject constructor(objects: ObjectFactory, providers: ProviderFactory) {
@@ -16,7 +17,8 @@ abstract class KvueExtension @Inject constructor(objects: ObjectFactory, provide
                 .map { parseExposure(it, "KVUE_EXPOSE_GENERATED_SOURCES_DEFAULT") })
             .orElse(true)
     )
-    val version: Property<String> = objects.property(String::class.java).convention("0.1.0-SNAPSHOT")
+    /** Runtime, KSP and compiler plugin artifacts; KVUE publishes them with the same version as this plugin. */
+    val version: Property<String> = objects.property(String::class.java).convention(KvueVersion.current)
     val targetName: Property<String> = objects.property(String::class.java).convention("js")
     val processTests: Property<Boolean> = objects.property(Boolean::class.java).convention(true)
     val addRuntimeDependency: Property<Boolean> = objects.property(Boolean::class.java).convention(true)
@@ -34,4 +36,11 @@ internal fun parseExposure(value: String, source: String): Boolean = when (value
     "true" -> true
     "false" -> false
     else -> throw GradleException("$source must be true or false, but was '$value'.")
+}
+
+/** Written into the plugin's resources by its own build, so the default follows each release. */
+internal object KvueVersion {
+    val current: String = checkNotNull(KvueVersion::class.java.getResourceAsStream("version.properties")) {
+        "The KVUE Gradle plugin is missing its version resource."
+    }.use { stream -> Properties().apply { load(stream) }.getProperty("version") }
 }

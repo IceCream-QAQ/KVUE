@@ -121,7 +121,14 @@ internal object ExternalComponents {
                 JsImportModel(component.get("module").asString, component.get("exportName").asString),
                 methods = methods, exposedProperties = exposedProperties,
                 hasInstance = component.get("kind")?.asString != "functional",
-                slotNames = component.getAsJsonArray("slots")?.map { it.asString }.orEmpty()),
+                slotNames = component.getAsJsonArray("slots")?.map { it.asString }.orEmpty(),
+                scopedSlots = component.getAsJsonArray("scopedSlots")?.map { entry ->
+                    val slot = entry.asJsonObject
+                    SlotModel(slot.get("name").asString, slot.getAsJsonArray("properties").map { item ->
+                        val field = item.asJsonObject
+                        SlotPropertyModel(field.get("memberName").asString, field.get("name").asString, importedType(field.get("kotlin").asString))
+                    })
+                }.orEmpty()),
                 schemas.getValue(className.canonicalName), component.get("source")?.takeUnless { it.isJsonNull }?.asString,
                 navigation, component.get("moduleSource")?.takeUnless { it.isJsonNull }?.asString)
         }

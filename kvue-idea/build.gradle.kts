@@ -47,6 +47,10 @@ tasks.processResources {
         include("gradlew", "gradlew.bat", "gradle/wrapper/gradle-wrapper.jar", "gradle/wrapper/gradle-wrapper.properties")
         into("project-template")
     }
+    // New projects default to the KVUE release this plugin was built with.
+    val pluginVersion = version.toString()
+    inputs.property("kvueVersion", pluginVersion)
+    filesMatching("kvue/idea/version.properties") { expand("version" to pluginVersion) }
 }
 tasks.named<JavaExec>("runIde") {
     // The sandbox keeps its Gradle model between runs, while our locally published SNAPSHOT changes.
@@ -57,8 +61,9 @@ val runtimeKlib = layout.projectDirectory.file("../kvue-runtime/build/libs/kvue-
 val kvuiKlib = layout.projectDirectory.file("../kvui/build/libs/kvui-js-0.1.0-SNAPSHOT.klib")
 val prepareRuntimeKlib = tasks.register<Exec>("prepareRuntimeKlib") {
     workingDir(layout.projectDirectory.dir(".."))
-    commandLine(if (System.getProperty("os.name").startsWith("Windows")) "gradlew.bat" else "./gradlew",
-        "--no-daemon", "--console=plain", ":kvue-runtime:jsJar", ":kvui:jsJar")
+    // Windows looks up a relative executable from Gradle's own directory, not workingDir; cmd.exe starts in workingDir.
+    val wrapper = if (System.getProperty("os.name").startsWith("Windows")) listOf("cmd", "/c", ".\\gradlew.bat") else listOf("./gradlew")
+    commandLine(wrapper + listOf("--no-daemon", "--console=plain", ":kvue-runtime:jsJar", ":kvui:jsJar"))
 }
 tasks.test {
     dependsOn(prepareRuntimeKlib)
@@ -71,6 +76,7 @@ tasks.test {
     systemProperty("kvue.test.js.dom", analysisJsDom.singleFile.absolutePath)
     systemProperty("kvue.test.runtime.klib", runtimeKlib.asFile.absolutePath)
     systemProperty("kvue.test.kvui.klib", kvuiKlib.asFile.absolutePath)
+    systemProperty("kvue.plugin.version", version.toString())
     doFirst {
         // Match Maven's immutable, content-addressed KLIB paths. Reusing a mutable build/libs URL
         // can leave IDEA's persisted archive stubs describing the previous snapshot.

@@ -3,7 +3,7 @@ package kvue.vdom
 import kvue.annotation.SlotDeclaration
 import kvue.vdom.knode.ElementNode
 
-/** Component bodies have their own receiver; HTML and slot render bodies still use RenderGroup. */
+/** Component content and slots have dedicated receivers derived from RenderGroup. */
 fun interface ComponentContent<in S : ComponentContentScope> {
     operator fun S.invoke()
 }
@@ -15,13 +15,16 @@ open class ComponentContentScope : RenderGroup() {
     internal val declaredSlots = mutableSetOf<String>()
 
     @SlotDeclaration
-    fun slot(name: String, content: RenderFun) {
+    fun slot(name: String, content: SlotContent<SlotScope>) = slot(name, ::SlotScope, content)
+
+    @SlotDeclaration
+    fun <S : SlotScope> slot(name: String, factory: (Any?) -> S, content: SlotContent<S>) {
         require(name.isNotBlank()) { "A slot name cannot be empty." }
         val node = checkNotNull(target) {
             "Inline slot declarations need the KVUE compiler plugin and must be directly inside component content."
         }
         declaredSlots += name
-        node.slot(name, content)
+        node.slot(name, factory, content)
     }
 }
 

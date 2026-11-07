@@ -8,12 +8,17 @@ import demo.elementplus.ElInputVue
 import demo.elementplus.ElProgress
 import demo.elementplus.ElSwitch
 import demo.elementplus.ElTag
+import demo.elementplus.ElTable
+import demo.elementplus.ElTableColumn
 import kvue.Component
+import kvue.`fun`.jso
 import kvue.annotation.VueComponent
 import kvue.vdom.RenderFun
+import kvue.vdom.Transition
 import kvue.vdom.knode.css
 import kvue.vdom.knode.style
 import kvue.watch
+import kvue.show
 import kvui.*
 
 @VueComponent
@@ -23,6 +28,7 @@ class Playground : Component() {
     private var name by ref("Kotlin")
     private var count by ref(0)
     private var enabled by ref(true)
+    private var greetingVisible by ref(true)
     private val percentage by computed { count * 10.0 }
     private var countNotice by ref("每次点击都由 Kotlin 回调更新 Vue 响应式状态。")
 
@@ -93,11 +99,40 @@ class Playground : Component() {
                     }
                     ElProgress(percentage = percentage, strokeWidth = 10.0, color = "#3578e5")
                 }
+
+                ElCard(shadow = "never") {
+                    slots.header { text("03 / 作用域插槽") }
+                    ElTable(data = arrayOf<Any>(jso("name" to name, "count" to count))) {
+                        ElTableColumn(label = "名字") {
+                            slots.default {
+                                val currentName = this.row.name as String
+                                span { text(currentName) }
+                            }
+                        }
+                        ElTableColumn(label = "计数") {
+                            slots.default {
+                                val value = (row.count as Number).toInt()
+                                val position = index.toInt()
+                                span { text("第 $position 行：$value") }
+                            }
+                        }
+                    }
+                }
+
+                ElCard(shadow = "never") {
+                    slots.header { text("04 / 显示与过渡") }
+                    p(className = "muted") { text("切换下方问候卡片的显示状态。隐藏后仍可调用 greet，卡片会保留当前内容。") }
+                    ElButton(plain = true, onClick = { greetingVisible = !greetingVisible }) {
+                        text(if (greetingVisible) "隐藏问候卡片" else "显示问候卡片")
+                    }
+                }
             }
 
             // 自己声明的 class，也由插件提供同名 RenderGroup 扩展函数。
-            GreetingCard(bindName = name).ref(greeting)
-                .onReset { count = 0 }
+            Transition(name = "greeting", persisted = true) {
+                GreetingCard(bindName = name).show(greetingVisible).ref(greeting)
+                    .onReset { count = 0 }
+            }
             footer(className = "footer") { text("KVUE · KVUI 原生元素 + Element Plus") }
         }
     }

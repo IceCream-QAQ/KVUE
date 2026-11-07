@@ -1,5 +1,5 @@
 package vue
 
-typealias VueRenderFun = () -> Array<VNode>
+typealias VueRenderFun = () -> VNode
 typealias VueSetupFun = (dynamic, dynamic) -> VueRenderFun
 

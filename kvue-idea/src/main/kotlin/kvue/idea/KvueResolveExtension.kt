@@ -8,6 +8,7 @@ import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.PsiElement
 import com.intellij.psi.search.GlobalSearchScope
 import kvue.codegen.ComponentCodegen
+import kvue.codegen.slotPropertyNames
 import org.jetbrains.kotlin.analysis.api.KaSession
 import org.jetbrains.kotlin.analysis.api.projectStructure.KaModule
 import org.jetbrains.kotlin.analysis.api.resolve.extensions.*
@@ -51,6 +52,12 @@ internal class ComponentVirtualFile(private val component: EditorComponent) : Ka
         override fun KaSession.getNavigationTargets(element: KtElement): Collection<PsiElement> {
             val declaration = PsiTreeUtil.getParentOfType(element, KtNamedDeclaration::class.java, false)
             val owner = PsiTreeUtil.getParentOfType(element, org.jetbrains.kotlin.psi.KtClass::class.java)
+            val scopedSlot = model.scopedSlots.firstOrNull { model.slotScopeName(it.name).simpleName == owner?.name }
+            if (scopedSlot != null) {
+                val field = slotPropertyNames(scopedSlot.properties).entries.firstOrNull { it.value == declaration?.name }?.key
+                return listOfNotNull(component.members["slot:${scopedSlot.name}:$field"]?.element
+                    ?: component.members["slot:${scopedSlot.name}"]?.element ?: component.origin.element)
+            }
             val isSlotApi = owner?.name in setOf(model.contentName.simpleName, model.slotsName.simpleName) ||
                 (owner?.name == model.nodeName.simpleName && declaration?.name == "slot")
             val target = if (isSlotApi) component.origin.element

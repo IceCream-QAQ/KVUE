@@ -155,10 +155,44 @@ internal object KotlinComponentReader {
                 owner.annotations.find { it.classId?.asFqNameString() == "kvue.annotation.SlotNames" }?.strings("value").orEmpty()
             }.distinct().toList()
         require(slotNames.none(String::isBlank)) { "Slot names cannot be empty." }
+        val scopedSlots = linkedMapOf<String, SlotModel>()
+        for (owner in sequenceOf(symbol) + symbol.defaultType.allSupertypes.mapNotNull { (it as? KaClassType)?.symbol as? KaNamedClassSymbol }) {
+            val declaredNames = mutableSetOf<String>()
+            for (schema in owner.combinedDeclaredMemberScope.classifiers.filterIsInstance<KaNamedClassSymbol>()) {
+                val annotation = schema.annotations.find { it.classId?.asFqNameString() == "kvue.annotation.Slot" } ?: continue
+                val name = annotation.string("name")
+                require(name.isNotBlank() && declaredNames.add(name)) { "Slot names must be non-empty and unique within a component." }
+                require(schema.classKind == KaClassKind.INTERFACE && schema.typeParameters.isEmpty() &&
+                    schema.visibility in setOf(KaSymbolVisibility.PUBLIC, KaSymbolVisibility.INTERNAL)) {
+                    "@Slot requires an accessible nested interface without type parameters."
+                }
+                if (name in scopedSlots) continue
+                schema.psi?.let { navigation["slot:$name"] = pointerManager.createSmartPsiElementPointer(it) }
+                val fields = (sequenceOf(schema.defaultType) + schema.defaultType.allSupertypes).flatMap { ownerType ->
+                    val type = ownerType as? KaClassType ?: return@flatMap emptySequence()
+                    val fieldOwner = type.symbol as? KaNamedClassSymbol ?: return@flatMap emptySequence()
+                    val substitutor = createSubstitutor(fieldOwner.typeParameters.zip(type.typeArguments)
+                        .associate { (parameter, argument) -> parameter to requireNotNull(argument.type) })
+                    fieldOwner.declaredMemberScope.callables.filterIsInstance<KaPropertySymbol>().map { it.substitute(substitutor) }
+                }.distinctBy { it.name.asString() }.sortedBy { it.name.asString() }.map { signature ->
+                    val property = signature.symbol
+                    require(property.isVal && property.receiverParameter == null &&
+                        property.visibility in setOf(KaSymbolVisibility.PUBLIC, KaSymbolVisibility.INTERNAL)) {
+                        "Slot props must be accessible vals without a receiver."
+                    }
+                    val field = signature.name.asString()
+                    val wire = property.annotations.find { it.classId?.asFqNameString() == "kvue.annotation.SlotProp" }?.string("name") ?: field
+                    property.psi?.let { navigation["slot:$name:$field"] = pointerManager.createSmartPsiElementPointer(it) }
+                    SlotPropertyModel(field, wire, toPoet(signature.returnType))
+                }.toList()
+                require(fields.map { it.wireName }.distinct().size == fields.size) { "Duplicate slot prop name." }
+                scopedSlots[name] = SlotModel(name, fields)
+            }
+        }
         val model = ComponentModel(ClassName(classId.packageFqName.asString(), classId.shortClassName.asString()),
             props.sortedBy { !it.required }, events, jsImport,
             if (symbol.visibility == KaSymbolVisibility.INTERNAL) KModifier.INTERNAL else KModifier.PUBLIC,
-            methods, exposedProperties, js?.boolean("hasInstance", true) ?: true, slotNames)
+            methods, exposedProperties, js?.boolean("hasInstance", true) ?: true, slotNames, scopedSlots.values.toList())
         require(model.bindingNameConflicts().isEmpty()) { "Conflicting binding parameter names: ${model.bindingNameConflicts()}" }
         require(model.exposedNameConflicts().isEmpty()) { "Conflicting exposed member names: ${model.exposedNameConflicts()}" }
         require(model.hasInstance || (methods.isEmpty() && exposedProperties.isEmpty())) { "Functional components have no public component instance." }

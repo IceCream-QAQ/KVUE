@@ -11,6 +11,7 @@ external val Suspense: dynamic
 external val KeepAlive: dynamic
 external val Transition: dynamic
 external val TransitionGroup: dynamic
+external val vShow: Directive
 
 external fun h(type: dynamic): VNode
 external fun h(type: dynamic, propsOrChildren: dynamic): VNode

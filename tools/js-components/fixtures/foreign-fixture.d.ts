@@ -16,7 +16,15 @@ export declare const ForeignCounter: DefineComponent<{
     change: (value: number, label: string) => boolean;
     'update:modelValue': (value: number) => boolean;
     bulk: (...values: unknown[]) => boolean;
-}> & { new(): { $slots: { default?: () => VNode[]; header?: () => VNode[]; _?: number; $stable?: boolean } } };
+}> & { new(): { $slots: {
+    default?: (props: { count: number }) => VNode[];
+    header?: () => VNode[];
+    item?: (props: {
+        row: { name: string }; index: number; selected?: boolean;
+        'data-id': string; slotProps: string; format: (value: string) => string;
+    }) => VNode[];
+    _?: number; $stable?: boolean;
+} } };
 
 export declare const ForeignFunctional: FunctionalComponent<{ label: string }>;
 

@@ -58,7 +58,7 @@ plugins {
 kotlin { js { browser(); binaries.executable() } }
 
 kvue {
-    version.set("0.1.0-SNAPSHOT")
+    // version 默认与 org.kvue 插件版本相同，运行库、KSP 和编译器插件随之一致，通常无需设置。
     // 默认目标是 js；可指定其他已声明的 Kotlin/JS 目标名称。
     targetName.set("js")
     // 存在 kvue.components.json 时自动使用；也可显式指定其他文件。

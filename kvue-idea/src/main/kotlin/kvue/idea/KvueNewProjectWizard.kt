@@ -37,7 +37,7 @@ class KvueNewProjectWizard : GeneratorNewProjectWizard {
 
 internal class KvueProjectWizardStep(parent: NewProjectWizardStep) : AbstractNewProjectWizardStep(parent) {
     val packageNameProperty = propertyGraph.property("app")
-    val versionProperty = propertyGraph.property("0.1.0-SNAPSHOT")
+    val versionProperty = propertyGraph.property(KvueVersion.current)
     val starterProperty = propertyGraph.property(KvueStarter.KVUI)
     val repositoryProperty = propertyGraph.property(KvueRepository.GITHUB)
     val localRepositoryProperty = propertyGraph.property("")

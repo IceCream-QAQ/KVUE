@@ -31,8 +31,12 @@ export const SourceArray = {
     },
 };
 
-/** @param {{ label: string }} props */
-export const SourceFunctional = props => h('span', { 'data-source-functional': '' }, props.label);
+/**
+ * @param {{ label: string }} props
+ * @param {{ slots: { item?: (props: { label: string, count?: number }) => import('vue').VNode[] } }} context
+ */
+export const SourceFunctional = (props, context) => h('span', { 'data-source-functional': '' },
+    [props.label, context.slots.item?.({ label: props.label })]);
 SourceFunctional.props = ['label'];
 SourceFunctional.emits = ['picked'];
 

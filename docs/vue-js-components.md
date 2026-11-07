@@ -257,7 +257,9 @@ facade 的 `asDynamic()` 用于未建模的公开接口。函数式组件没有�
 
 类型放宽不会偷偷转成一个虚假的精确类型。使用复杂对象时应传 JS 原生对象或数组，例如通过 `jso(...)` 构建对象；不会自动把 Kotlin `Map`/`List` 序列化成第三方库的数据结构。
 
-当前不自动生成字符串字面量枚举、任意 TypeScript 结构类型的 Kotlin wrapper、类型化作用域插槽，或组件库的普通服务 API。
+作用域插槽通过 `slots.default { ... }`、`slots.item { ... }` 等函数的接收者提供参数。可表达的字段保留 Kotlin 类型；复杂结构对象、未知类型和未绑定泛型以 `dynamic` 暴露，原始对象始终可通过 `slotProps` 访问。支持泛型 SFC 的 `__ctx.slots` 声明；例如 Element Plus 表格列的 `row` 和 `$index`。具体写法及嵌套接收者规则见 [作用域插槽](slots.md#作用域插槽)。
+
+当前不自动生成字符串字面量枚举、任意 TypeScript 结构类型的 Kotlin wrapper，或组件库的普通服务 API。
 
 源码分析有额外边界：
 
@@ -274,8 +276,8 @@ facade 的 `asDynamic()` 用于未建模的公开接口。函数式组件没有�
 - named/default/CommonJS 导出和函数式组件。
 - 原始组件引用身份、独立状态、JS 默认值、显式 `null`、props 更新。
 - 普通、多参数、rest 事件及 rest callback prop。
-- 默认和具名插槽。
-- 真实 Element Plus 按钮点击、禁用状态和输入框模型更新。
+- 默认、具名和作用域插槽，含可选参数、回调、重复调用及响应式更新。
+- 真实 Element Plus 按钮点击、禁用状态、输入框模型更新和表格列作用域插槽。
 - 无 `.d.ts` 的 ESM/CommonJS 组件、JSDoc 事件、源码 props/emits 数组、Boolean prop 默认值与更新。
 - npm 的 JS 回退、声明优先级、显式源码入口、展开顺序、动态元数据与循环引用。分析测试文件包含顶层 `throw`，确保分析不会执行组件源码。
 

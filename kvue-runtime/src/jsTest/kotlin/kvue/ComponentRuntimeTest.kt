@@ -9,6 +9,10 @@ import kvue.fixtures.SlotHostVue
 import kvue.fixtures.SlotProbe
 import kvue.fixtures.InlineSlotHostVue
 import kvue.fixtures.InlineSlotProbe
+import kvue.fixtures.MissingDefaultHostVue
+import kvue.fixtures.RenderProbe
+import kvue.fixtures.RerenderHostVue
+import kvue.fixtures.ScopedSlotSourceVue
 import kvue.`fun`.jso
 import kotlin.js.Promise
 import kotlin.test.Test
@@ -16,7 +20,9 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import vue.VNode
 import vue.createApp
+import vue.h
 import vue.nextTick
 
 private external val document: dynamic
@@ -153,6 +159,84 @@ class ComponentRuntimeTest {
     }
 
     @Test
+    fun childrenWithoutContentSkipUnrelatedParentRenders(): Promise<Unit> {
+        RenderProbe.renders.clear()
+        return withMounted(RerenderHostVue.definition) { host ->
+            fun text(selector: String): String = host.querySelector(selector).textContent as String
+            fun click(action: String) { host.querySelector("[data-rerender-action='$action']").click() }
+
+            assertEquals(mapOf("plain" to 1, "content" to 1, "optional" to 1), RenderProbe.renders.toMap())
+            click("tick")
+            nextTick().then {
+                assertEquals("tick:1", text("[data-rerender-tick]"))
+                assertEquals(1, RenderProbe.renders["plain"])
+                assertEquals(1, RenderProbe.renders["optional"])
+                click("toggle")
+                nextTick()
+            }.then {
+                assertEquals("optional:first", text("[data-render-counter='optional']"))
+                click("label")
+                nextTick()
+            }.then {
+                assertEquals("content:second", text("[data-render-counter='content']"))
+                assertEquals("optional:second", text("[data-render-counter='optional']"))
+                click("toggle")
+                nextTick()
+            }.then {
+                assertEquals("", text("[data-render-counter='optional']"))
+                assertEquals(1, RenderProbe.renders["plain"])
+            }
+        }
+    }
+
+    @Test
+    fun slotOutletsPassPropsAsPlainObjects() {
+        var itemProps: dynamic = null
+        var defaultProps: dynamic = null
+        // A plain Vue parent, as a template would compile it, receives the scoped slot props.
+        val parent = jso("render" to {
+            h(ScopedSlotSourceVue.definition.vue, null, jso(
+                "item" to { props: dynamic -> itemProps = props; emptyArray<VNode>() },
+                "default" to { props: dynamic -> defaultProps = props; emptyArray<VNode>() },
+            ))
+        })
+        val host = document.createElement("div")
+        document.body.appendChild(host)
+        val app = createApp(parent)
+        try {
+            app.mount(host)
+            assertEquals("first", itemProps.label as String)
+            assertEquals(0, itemProps.index as Int)
+            // Like Vue's renderSlot, omitted props are an empty object, so parents can destructure them.
+            assertEquals(0, js("Object.keys")(defaultProps).length as Int)
+        } finally {
+            app.unmount()
+            host.remove()
+        }
+    }
+
+    @Test
+    fun optionalPropsWithoutDefaultsReportTheMissingDefault() {
+        val host = document.createElement("div")
+        document.body.appendChild(host)
+        val app = createApp(MissingDefaultHostVue.definition.vue)
+        var captured: Throwable? = null
+        // A handled error lets Vue finish the render; an escaping one would leave its rendering state behind.
+        app.config.errorHandler = { error, _, _ -> captured = error as? Throwable }
+        try {
+            app.mount(host)
+            assertTrue(captured is IllegalStateException, captured.toString())
+            assertEquals(
+                "Optional prop 'title' has no default value. Use property(default), or mark it @Prop(required = true).",
+                captured?.message,
+            )
+        } finally {
+            app.unmount()
+            host.remove()
+        }
+    }
+
+    @Test
     fun failedConstructionDoesNotLeakTheInstanceContext() {
         val error = assertFailsWith<IllegalStateException> {
             FailingComponentVue.definition.vue.setup(jso(), jso())
@@ -163,7 +247,7 @@ class ComponentRuntimeTest {
     }
 }
 
-private fun withMounted(
+internal fun withMounted(
     definition: ComponentDefinition<*>,
     assertions: (dynamic) -> Promise<Unit>,
 ): Promise<Unit> {

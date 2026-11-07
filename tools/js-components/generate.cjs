@@ -206,6 +206,65 @@ function analyze(config, nodeModules, configDirectory = process.cwd()) {
     return type.flags & ts.TypeFlags.StringLiteral ? [type.value] : [];
   }
 
+  // Vue calls a slot with one props object. Keep known fields on the Kotlin receiver;
+  // open/generic JS values stay dynamic rather than inventing a Kotlin object layout.
+  function slotModels(slotTypes) {
+    const slots = new Map();
+    for (const type of slotTypes || []) {
+      for (const symbol of type.getProperties()) {
+        if (['_', '_ctx', '$stable'].includes(symbol.name)) continue;
+        const signatures = nonNullable(symbolType(symbol)).getCallSignatures();
+        if (!signatures.length) continue;
+        const contracts = slots.get(symbol.name) || [];
+        for (const signature of signatures) {
+          const parameter = signature.parameters[0];
+          const fields = new Map();
+          if (parameter) {
+            let props = symbolType(parameter);
+            if (props.flags & ts.TypeFlags.TypeParameter) props = checker.getBaseConstraintOfType(props) || props;
+            const optionalProps = props.isUnion() && props.types.some(item => item.flags & (ts.TypeFlags.Null | ts.TypeFlags.Undefined));
+            props = nonNullable(props);
+            if ((props.flags & ts.TypeFlags.Object || props.isIntersection() || props.isUnion()) && !checker.isArrayType(props)) {
+              for (const field of props.getProperties()) {
+                const previous = location;
+                location = { ...location, member: 'slot:' + symbol.name + '.' + field.name };
+                const noteStart = diagnostics.length;
+                const converted = toKotlin(symbolType(field), 0, true);
+                let kotlin = converted.variadic || /^Any\??$/.test(converted.kotlin) ? 'dynamic' : converted.kotlin;
+                if (kotlin === 'dynamic') {
+                  diagnostics.length = noteStart;
+                  warn('Slot field cannot be represented precisely; exposed as dynamic.', symbolType(field));
+                }
+                if (kotlin !== 'dynamic' && (optionalProps || field.flags & ts.SymbolFlags.Optional)) kotlin = nullable(kotlin);
+                fields.set(field.name, kotlin);
+                location = previous;
+              }
+            }
+          }
+          contracts.push(fields);
+        }
+        slots.set(symbol.name, contracts);
+      }
+    }
+    const scopedSlots = [];
+    for (const [name, contracts] of [...slots].sort(([a], [b]) => a.localeCompare(b))) {
+      const names = [...new Set(contracts.flatMap(fields => [...fields.keys()]))].sort();
+      if (!names.length) continue;
+      const used = new Set();
+      const properties = names.map(name => {
+        let memberName = identifier(name, 'prop');
+        while (used.has(memberName)) memberName += 'Prop';
+        used.add(memberName);
+        const types = contracts.map(fields => fields.get(name)).filter(Boolean);
+        let kotlin = new Set(types).size === 1 ? types[0] : 'dynamic';
+        if (kotlin !== 'dynamic' && types.length < contracts.length) kotlin = nullable(kotlin);
+        return { name, memberName, kotlin };
+      });
+      scopedSlots.push({ name, properties });
+    }
+    return { slots: [...slots.keys()].sort(), scopedSlots };
+  }
+
   function eventModels(emitType, rawEmits, sourceEvents) {
     const result = new Map();
     const add = (name, signature, start) => {
@@ -259,11 +318,24 @@ function analyze(config, nodeModules, configDirectory = process.cwd()) {
       if (props && instance.getProperty('$emit')) return { kind: 'stateful', instance, props, emits: propertyType(instance, '$emit'), slotTypes };
     }
     const calls = type.getCallSignatures();
+    // Vue language-tools represents generic SFCs as callable declarations whose VNode
+    // carries __ctx. They are still stateful runtime components, not functional exports.
+    for (const signature of calls) {
+      const contextType = propertyType(checker.getReturnTypeOfSignature(signature), '__ctx');
+      const context = contextType && nonNullable(contextType);
+      const props = context && propertyType(context, 'props');
+      const slots = context && propertyType(context, 'slots');
+      const emits = context && propertyType(context, 'emit');
+      if (props && slots && emits) {
+        const exposed = propertyType(context, 'expose')?.getCallSignatures()[0]?.parameters[0];
+        return { kind: 'stateful', props, emits, slotTypes: [slots], instance: exposed && symbolType(exposed) };
+      }
+    }
     if (calls.length && ((type.getProperty('props') && type.getProperty('emits')) ||
         (explicit && checker.getReturnTypeOfSignature(calls[0]).getProperty('__v_isVNode')))) {
       const first = calls[0].parameters[0];
       const context = calls[0].parameters[1];
-      const slots = context && propertyType(symbolType(context), 'slots');
+      const slots = context && propertyType(nonNullable(symbolType(context)), 'slots');
       return { kind: 'functional', props: first && symbolType(first), rawEmits: propertyType(type, 'emits'), slotTypes: slots ? [slots] : [] };
     }
     const render = propertyType(type, 'render');
@@ -439,9 +511,7 @@ function analyze(config, nodeModules, configDirectory = process.cwd()) {
         navigation: declarationLocation(symbol), moduleSource,
         props: props.sort((a, b) => a.name.localeCompare(b.name)), events,
         ...exposed,
-        slots: [...new Set((shape.slotTypes || []).flatMap(type => type.getProperties())
-          .filter(symbol => !['_', '_ctx', '$stable'].includes(symbol.name) && nonNullable(symbolType(symbol)).getCallSignatures().length)
-          .map(symbol => symbol.name))].sort(),
+        ...slotModels(shape.slotTypes),
       });
     }
   });
@@ -454,7 +524,8 @@ function analyze(config, nodeModules, configDirectory = process.cwd()) {
 function renderSchema(component) {
   const lines = ['// Generated by KVUE TypeScript importer. Do not edit.', `package ${component.package.split('.').map(kotlinName).join('.')}`, '',
     'import kvue.annotation.JsComponent', 'import kvue.annotation.Prop', 'import kvue.annotation.Emit',
-    'import kvue.annotation.Expose', 'import kvue.annotation.JsOptional', 'import kvue.annotation.SlotNames', '',
+    'import kvue.annotation.Expose', 'import kvue.annotation.JsOptional', 'import kvue.annotation.SlotNames',
+    'import kvue.annotation.Slot', 'import kvue.annotation.SlotProp', '',
     `@JsComponent(module = ${kotlinString(component.module)}, exportName = ${kotlinString(component.exportName)}, hasInstance = ${component.kind !== 'functional'})`,
     `interface ${kotlinName(component.name)} {`,
   ];
@@ -478,6 +549,14 @@ function renderSchema(component) {
     lines.push(`    @Expose(name = ${kotlinString(property.name)})`,
       `    val ${kotlinName(property.memberName)}: ${property.kotlin}`, '');
   }
+  (component.scopedSlots || []).forEach((slot, index) => {
+    lines.push('    @Slot(' + kotlinString(slot.name) + ')', '    interface Slot' + index + ' {');
+    for (const field of slot.properties) {
+      lines.push('        @SlotProp(' + kotlinString(field.name) + ')',
+        '        val ' + kotlinName(field.memberName) + ': ' + field.kotlin);
+    }
+    lines.push('    }', '');
+  });
   lines.push('}', '');
   return lines.join('\n');
 }

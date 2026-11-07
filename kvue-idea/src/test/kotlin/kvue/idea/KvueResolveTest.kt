@@ -66,6 +66,8 @@ class KvueResolveTest : LightJavaCodeInsightFixtureTestCase() {
             annotation class Expose(val name: String = "", val variadic: Boolean = false)
             annotation class JsOptional
             annotation class SlotNames(vararg val value: String)
+            annotation class Slot(val name: String)
+            annotation class SlotProp(val name: String)
             annotation class SlotDeclaration(val name: String = "")
             @Target(AnnotationTarget.VALUE_PARAMETER)
             annotation class VBind(val prop: String, val event: String, val variadic: Boolean = false)
@@ -96,16 +98,23 @@ class KvueResolveTest : LightJavaCodeInsightFixtureTestCase() {
         myFixture.addFileToProject("kvue/Render.kt", """
             package kvue.vdom
             open class RenderGroup
-            fun interface RenderFun { fun RenderGroup.render() }
+            open class SlotScope(props: Any?) : RenderGroup()
+            fun interface SlotContent<in S : SlotScope> { fun S.render() }
+            fun interface RenderFun : SlotContent<SlotScope> {
+                fun RenderGroup.render()
+                override fun SlotScope.render() { (this as RenderGroup).render() }
+            }
             open class ComponentContentScope : RenderGroup() {
-                @kvue.annotation.SlotDeclaration fun slot(name: String, content: RenderFun) {}
+                @kvue.annotation.SlotDeclaration fun slot(name: String, content: SlotContent<SlotScope>) {}
+                @kvue.annotation.SlotDeclaration fun <S : SlotScope> slot(name: String, factory: (Any?) -> S, content: SlotContent<S>) {}
             }
             fun interface ComponentContent<in S : ComponentContentScope> { fun S.render() }
         """.trimIndent())
         myFixture.addFileToProject("kvue/Element.kt", """
             package kvue.vdom.knode
             open class ElementNode(definition: Any? = null) {
-                open fun slot(name: String, renderFun: kvue.vdom.RenderFun): ElementNode = this
+                open fun slot(name: String, renderFun: kvue.vdom.SlotContent<kvue.vdom.SlotScope>): ElementNode = this
+                open fun <S : kvue.vdom.SlotScope> slot(name: String, factory: (Any?) -> S, content: kvue.vdom.SlotContent<S>): ElementNode = this
             }
             fun <N : ElementNode> N.style(block: () -> Unit): N = this
         """.trimIndent())
@@ -517,6 +526,28 @@ class KvueResolveTest : LightJavaCodeInsightFixtureTestCase() {
         import kvue.vdom.RenderGroup
         fun RenderGroup.page() { Wid<caret>get(title = "hello") }
     """.trimIndent()) as KtFile
+
+    fun testScopedSlotFieldNavigationReturnsToItsSchema() {
+        val source = myFixture.addFileToProject("sample/Rows.kt", """
+            package sample
+            import kvue.Component
+            import kvue.annotation.*
+            @VueComponent class Rows : Component() {
+                @Slot("item") interface Item { val label: String }
+            }
+        """.trimIndent()) as KtFile
+        myFixture.configureByText("ScopedNavigation.kt", """
+            import sample.Rows
+            import kvue.vdom.RenderGroup
+            fun RenderGroup.page() { Rows { slots.item { println(this.la<caret>bel) } } }
+        """.trimIndent())
+        refresh()
+        assertEmpty(myFixture.doHighlighting(HighlightSeverity.ERROR))
+        val target = gotoTargets().single()
+        val property = PsiTreeUtil.findChildrenOfType(source, KtProperty::class.java).single()
+        assertEquals(property.textOffset, target.textOffset)
+        assertEquals(source.virtualFile, target.containingFile.virtualFile)
+    }
 
     private fun publishNavigation(caller: KtFile, source: PsiFile, javascript: PsiFile? = null, columnOverride: Int? = null): PsiFile {
         val configuration = myFixture.tempDirFixture.getFile("kvue.components.json")?.let {

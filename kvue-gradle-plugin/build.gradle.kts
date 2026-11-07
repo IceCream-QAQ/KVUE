@@ -26,9 +26,14 @@ gradlePlugin {
 }
 tasks.processResources {
     from("../tools/js-components") { include("*.cjs"); exclude("*.test.cjs"); into("js-importer") }
+    // KvueExtension defaults the runtime, KSP and compiler plugin artifacts to this plugin's own version.
+    val pluginVersion = version.toString()
+    inputs.property("kvueVersion", pluginVersion)
+    filesMatching("kvue/gradle/version.properties") { expand("version" to pluginVersion) }
 }
 publishing { repositories { maven { name = "test"; url = layout.buildDirectory.dir("test-repository").get().asFile.toURI() } } }
 tasks.test {
     dependsOn("publishAllPublicationsToTestRepository")
     systemProperty("kvue.plugin.test.repository", layout.buildDirectory.dir("test-repository").get().asFile.toURI().toString())
+    systemProperty("kvue.plugin.version", version.toString())
 }

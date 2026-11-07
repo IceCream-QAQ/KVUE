@@ -5,6 +5,9 @@ import kvue.vdom.buildVNodes
 import vue.VueRenderFun
 import vue.VueSetupFun
 import vue.cloneVNode
+import vue.createCommentVNode
+import vue.createVNode
+import vue.Fragment
 
 data class ComponentProp(val name: String, val required: Boolean = false, val propertyName: String = name)
 
@@ -13,6 +16,7 @@ class ComponentContext internal constructor(
     val props: dynamic,
     internal val setupContext: dynamic,
     internal val propNames: Map<String, String>,
+    internal val requiredProps: Set<String>,
 ) {
     internal var events: Map<String, Any> = emptyMap()
 
@@ -38,16 +42,17 @@ class ComponentDefinition<T : Component>(
         val propNames = props.associate { prop ->
             prop.propertyName to prop.name.replace(Regex("-(\\w)")) { it.groupValues[1].uppercase() }
         }
+        val requiredProps = props.filter { it.required }.mapTo(mutableSetOf()) { it.propertyName }
 
         val setup: VueSetupFun = { inputProps, setupContext ->
-            val context = ComponentContext(inputProps, setupContext, propNames)
+            val context = ComponentContext(inputProps, setupContext, propNames, requiredProps)
             context.events = bindEvents(context)
             val instance = ComponentConstruction.create(context, factory)
             if (expose != null) setupContext.expose(expose(instance))
             val render: VueRenderFun = {
                 val nodes = instance.body.buildVNodes()
-                // Keep the Fragment stable when a render switches between one and several roots.
-                // Forward attrs explicitly to a sole element/component without changing that structure.
+                // A single root must remain a real VNode so Vue can apply directives and transitions.
+                // Callers needing a stable group across root-count changes can render Fragment explicitly.
                 if (nodes.size == 1 && (nodes[0].asDynamic().shapeFlag.unsafeCast<Int>() and 7) != 0) {
                     val attrs = setupContext.attrs
                     val forwarded = jso()
@@ -58,7 +63,11 @@ class ComponentDefinition<T : Component>(
                     }
                     nodes[0] = cloneVNode(nodes[0], forwarded)
                 }
-                nodes
+                when (nodes.size) {
+                    0 -> createCommentVNode()
+                    1 -> nodes[0]
+                    else -> createVNode(Fragment, null, nodes)
+                }
             }
             render
         }

@@ -14,6 +14,7 @@ import com.google.devtools.ksp.symbol.ClassKind
 import com.google.devtools.ksp.symbol.KSAnnotated
 import com.google.devtools.ksp.symbol.KSAnnotation
 import com.google.devtools.ksp.symbol.KSClassDeclaration
+import com.google.devtools.ksp.symbol.KSDynamicReference
 import com.google.devtools.ksp.symbol.KSFunctionDeclaration
 import com.google.devtools.ksp.symbol.KSFile
 import com.google.devtools.ksp.symbol.KSNode
@@ -27,6 +28,7 @@ import com.google.devtools.ksp.symbol.Nullability
 import com.google.devtools.ksp.symbol.Visibility
 import com.google.devtools.ksp.validate
 import com.squareup.kotlinpoet.ClassName
+import com.squareup.kotlinpoet.Dynamic
 import com.squareup.kotlinpoet.KModifier
 import com.squareup.kotlinpoet.ksp.toClassName
 import com.squareup.kotlinpoet.ksp.toTypeName
@@ -39,6 +41,8 @@ import kvue.codegen.validEventName
 import kvue.codegen.ExposedMethodModel
 import kvue.codegen.ExposedParameterModel
 import kvue.codegen.ExposedPropertyModel
+import kvue.codegen.SlotModel
+import kvue.codegen.SlotPropertyModel
 
 class ComponentProcessorProvider : SymbolProcessorProvider {
     override fun create(environment: SymbolProcessorEnvironment): SymbolProcessor =
@@ -63,9 +67,10 @@ private class ComponentProcessor(
             // Kotlin/JS dynamic implementation members unresolved; the Kotlin compiler checks them.
             if (!component.validate(predicate = { _, node ->
                     when (node) {
-                        is KSPropertyDeclaration -> node.annotation(PROP_ANNOTATION) != null || node.annotation(EMIT_ANNOTATION) != null || node.annotation(EXPOSE_ANNOTATION) != null
+                        is KSPropertyDeclaration -> node.annotation(PROP_ANNOTATION) != null || node.annotation(EMIT_ANNOTATION) != null || node.annotation(EXPOSE_ANNOTATION) != null ||
+                            (node.parentDeclaration?.annotation("kvue.annotation.Slot") != null && node.type.element !is KSDynamicReference)
                         is KSFunctionDeclaration -> node.simpleName.asString() == "<init>" || node.annotation(EXPOSE_ANNOTATION) != null
-                        is KSClassDeclaration -> node == component
+                        is KSClassDeclaration -> node == component || node.annotation("kvue.annotation.Slot") != null
                         else -> true
                     }
                 }, enableNewFeatures = false)) {
@@ -288,16 +293,47 @@ private class ComponentProcessor(
             (owner.annotation("kvue.annotation.SlotNames")?.argument("value") as? List<*>).orEmpty().filterIsInstance<String>()
         }.distinct()
         if (slotNames.any(String::isBlank)) reject("Slot names cannot be empty.")
+        val scopedSlots = linkedMapOf<String, SlotModel>()
+        val slotSources = mutableListOf<KSFile>()
+        for (owner in slotOwners.filterIsInstance<KSClassDeclaration>()) {
+            val declaredNames = mutableSetOf<String>()
+            for (schema in owner.declarations.filterIsInstance<KSClassDeclaration>()) {
+                val annotation = schema.annotation("kvue.annotation.Slot") ?: continue
+                val name = annotation.argument("name") as String
+                if (name.isBlank() || !declaredNames.add(name)) reject("Slot names must be non-empty and unique within a component.", schema)
+                if (schema.classKind != ClassKind.INTERFACE || schema.typeParameters.isNotEmpty() ||
+                    schema.getVisibility() !in setOf(Visibility.PUBLIC, Visibility.INTERNAL)) {
+                    reject("@Slot requires an accessible nested interface without type parameters.", schema)
+                    continue
+                }
+                if (name in scopedSlots) continue
+                schema.containingFile?.let(slotSources::add)
+                val fields = schema.getAllProperties().sortedBy { it.simpleName.asString() }.map { property ->
+                    if (property.isMutable || property.extensionReceiver != null ||
+                        property.getVisibility() !in setOf(Visibility.PUBLIC, Visibility.INTERNAL)) {
+                        reject("Slot props must be accessible vals without a receiver.", property)
+                    }
+                    property.containingFile?.let(slotSources::add)
+                    val fieldName = property.simpleName.asString()
+                    val wireName = (property.annotation("kvue.annotation.SlotProp")?.argument("name") as? String) ?: fieldName
+                    val type = if (property.type.element is KSDynamicReference) Dynamic
+                        else property.asMemberOf(schema.asStarProjectedType()).toTypeName()
+                    SlotPropertyModel(fieldName, wireName, type)
+                }.toList()
+                if (fields.map { it.wireName }.distinct().size != fields.size) reject("Duplicate slot prop name.", schema)
+                scopedSlots[name] = SlotModel(name, fields)
+            }
+        }
         val model = ComponentModel(className, props.sortedBy { !it.required }, events, jsImport,
             if (component.getVisibility() == Visibility.INTERNAL) KModifier.INTERNAL else KModifier.PUBLIC,
-            methods, exposedProperties, jsAnnotation?.argument("hasInstance") as? Boolean ?: true, slotNames)
+            methods, exposedProperties, jsAnnotation?.argument("hasInstance") as? Boolean ?: true, slotNames, scopedSlots.values.toList())
         model.bindingNameConflicts().forEach { reject("Binding parameter '$it' conflicts with an existing DSL parameter.") }
         model.exposedNameConflicts().forEach { reject("Exposed member '$it' conflicts with another member or a reserved instance API.") }
         if (!model.hasInstance && (methods.isNotEmpty() || exposedProperties.isNotEmpty())) reject("Functional components have no public component instance.")
         if (!valid) return null
         return ParsedComponent(
             model,
-            (slotOwners.map { it.containingFile } + declarations.map { it.first.containingFile } + exposedFunctions.map { it.containingFile }).filterNotNull().distinct().toTypedArray(),
+            (slotSources + slotOwners.map { it.containingFile } + declarations.map { it.first.containingFile } + exposedFunctions.map { it.containingFile }).filterNotNull().distinct().toTypedArray(),
         )
     }
 

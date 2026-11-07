@@ -250,6 +250,64 @@ internal class SlotHost : Component() {
     }
 }
 
+internal object RenderProbe {
+    val renders = mutableMapOf<String, Int>()
+}
+
+@VueComponent
+internal class RenderCounter : Component() {
+    @Prop(required = true)
+    private val name by property<String>()
+
+    override val body = RenderFun {
+        RenderProbe.renders[name] = (RenderProbe.renders[name] ?: 0) + 1
+        div { slot() }.property("data-render-counter", name)
+    }
+}
+
+@VueComponent
+internal class RerenderHost : Component() {
+    private var tick by ref(0)
+    private var label by ref("first")
+    private var withContent by ref(false)
+
+    override val body = RenderFun {
+        div { text("tick:$tick") }.property("data-rerender-tick", "")
+        RenderCounter(name = "plain")
+        RenderCounter(name = "content") { text("content:$label") }
+        // The same child instance switches between no slot children and a slot object.
+        RenderCounter(name = "optional").apply {
+            if (withContent) slot("default") { text("optional:$label") }
+        }
+        button(onClick = { tick++ }) { text("tick") }.property("data-rerender-action", "tick")
+        button(onClick = { label = "second" }) { text("label") }.property("data-rerender-action", "label")
+        button(onClick = { withContent = !withContent }) { text("toggle") }.property("data-rerender-action", "toggle")
+    }
+}
+
+@VueComponent
+internal class ScopedSlotSource : Component() {
+    override val body = RenderFun {
+        slot("item", mapOf("label" to "first", "index" to 0))
+        slot()
+    }
+}
+
+@VueComponent
+internal class MissingDefaultCard : Component() {
+    // The helper hides the missing default from the compiler check, so only the runtime can report it.
+    @Prop private val title by noDefault<String>()
+
+    private fun <T> noDefault() = property<T>()
+
+    override val body = RenderFun { text(title) }
+}
+
+@VueComponent
+internal class MissingDefaultHost : Component() {
+    override val body = RenderFun { MissingDefaultCard() }
+}
+
 @VueComponent
 internal class FailingComponent : Component() {
     init {

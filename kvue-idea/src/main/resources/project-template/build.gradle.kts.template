@@ -26,6 +26,5 @@ kotlin {
 }
 
 kvue {
-    version.set("{{VERSION}}")
     processTests.set(false)
 }

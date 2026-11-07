@@ -5,6 +5,7 @@
 | 入口 | 用途 |
 | --- | --- |
 | `kvue.*` | Kotlin 委托、监听回调、生命周期、类型化注入和 effect scope |
+| `kvue.vdom.*` | 渲染内容块、Vue 内置组件、显式 Fragment 和动态组件 |
 | `vue.*` | 直接调用 Vue 的原生 JS 导出；组件 options、slots、attrs 等复杂对象保留 JS 形态 |
 
 推荐在组件中使用 `kvue` 入口，第三方 JS 互操作按需使用 `vue`。这些都是普通 Kotlin API，IDE 通过库声明提供提示。
@@ -26,7 +27,10 @@ Counter(onChanged = { value -> println(value) })
 `css` 配置 class 名称，`style` 合并内联 CSS；它们保留具体节点类型，不生成样式表、选择器或伪类规则。
 参数监听器在前，链式监听器按调用顺序追加。同名事件不会互相覆盖，也不会覆盖 `vModel` 的回写。
 每次 render 都构造新的监听配置，Vue 更新对应 VNode，不会跨 render 累积订阅。
-KVUE 保持稳定的 Fragment 根结构，并将 attrs 合并到唯一的元素/组件根节点；多根组件应显式选择属性落点。
+KVUE 单根直接返回 VNode，空内容返回注释节点，多根返回 Fragment；attrs 合并到唯一的元素/组件根节点，多根组件应显式选择属性落点。
+组件指令、`show` 和过渡组件要求目标有一个实际元素根。根数量变化时需要保留子组件身份，应显式使用 `Fragment { ... }`；这类分组本身不作为指令或动画的元素落点。
+
+类型化指令、`show`、五个内置组件、异步加载与动态组件的完整用法见 [指令与内置组件](../docs/directives-and-builtins.md)。
 
 在 Kotlin 组件上用 `@Expose` 声明公开接口：
 
@@ -221,7 +225,7 @@ scope.stop()
 - 普通对象的 `readonly` 依靠 Vue 在运行时保护，Kotlin 的 `var` 声明不会自动变成 `val`；ref 包装层则有独立只读类型。
 - `toRefs` 返回 `Map<String, RefValue<Any?>>`。`toRef<T>(object, "key")` 使用真实 JS 属性名；Kotlin 属性优先使用 `toRef(object::property)`，不猜测编译后的字段名。
 - Kotlin 集合不是原生 JS Map/Set 的类型别名；需要原生对象/数组接口时应显式建模和转换。
-- options、slots、attrs 和异步组件 loader 等边界使用 `dynamic`，调用方负责构造正确的 JS 对象。
+- 原生 `vue.*` 的 options、slots、attrs 和异步 loader 等边界仍使用 `dynamic`；`kvue.defineAsyncComponent` 和 `kvue.vdom` 内置组件入口提供对应的 Kotlin 类型封装。
 - SFC 的 `defineProps` / `defineEmits` / `defineModel` 等编译宏、Vue 内部编译器辅助函数不作为 Kotlin 运行时 API 模拟。
 
 `createApp(ComponentVue.definition)` 是 Kotlin 层便利入口；已有的 `vue.createApp(ComponentVue.definition.vue)` 仍可使用。

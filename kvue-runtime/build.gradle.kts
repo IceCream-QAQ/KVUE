@@ -22,7 +22,10 @@ kotlin {
     sourceSets {
         jsMain {
             kotlin.srcDir("src/main/kotlin")
-            dependencies { api(npm("vue", "3.5.44")) }
+            dependencies {
+                api(npm("vue", "3.5.44"))
+                api("org.jetbrains.kotlin:kotlin-dom-api-compat:2.4.21")
+            }
         }
         jsTest.dependencies { implementation(kotlin("test")) }
     }
